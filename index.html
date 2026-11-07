@@ -84,8 +84,8 @@
       .chainbar .formula b{ color:var(--purple); }
 
       /* ---------- layout ---------- */
-      .layout{ display:grid; grid-template-columns:300px 1fr 320px; gap:16px; align-items:start; }
-      @media (max-width:1020px){ .layout{ grid-template-columns:1fr 1fr; } .board-col{ grid-column:1 / -1; order:-1; } }
+      .layout{ display:grid; grid-template-columns:340px 1fr; gap:16px; align-items:start; margin-top:16px; }
+      @media (max-width:1020px){ .layout{ grid-template-columns:1fr 1fr; } }
       @media (max-width:640px){ .layout{ grid-template-columns:1fr; } }
       .card{
         background:var(--panel); border:3px solid var(--ink); border-radius:6px;
@@ -100,6 +100,24 @@
       .stat-row{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:2px dashed var(--line); font-size:14px; }
       .stat-row:last-child{ border-bottom:none; }
       .stat-row b{ font-family:"IBM Plex Mono", monospace; }
+      /* ---------- game zone: board + live-play panels inside the play bar ---------- */
+      .game-zone{
+        display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:16px; align-items:start;
+        margin-top:16px; padding-top:16px; border-top:3px solid var(--ink);
+      }
+      .gz-board, .gz-side{ min-width:0; }
+      @media (max-width:1020px){ .game-zone{ grid-template-columns:1fr; } }
+      .side-panel{
+        background:var(--panel2); border:2px solid var(--line); border-radius:6px;
+        padding:14px; margin-bottom:14px;
+      }
+      .gz-side .side-panel:last-child{ margin-bottom:0; }
+      .side-panel h2{
+        font-family:"Press Start 2P", monospace; font-size:13px; margin:0 0 12px;
+        letter-spacing:.5px; line-height:1.6;
+      }
+      .side-panel h2 .accent{ color:var(--gold); }
+      #realActionsPanel{ border-color:var(--teal); }
 
       /* ---------- buttons ---------- */
       .btn{
@@ -171,12 +189,12 @@
         .playbar .lobby .l-sub{ font-size:11px; }
       }
 
-      /* ---------- play bar on phones: actions first, compact lobby row,
-         and the whole bar sticks to the top so Join never scrolls away.
+      /* ---------- play bar on phones: actions first, compact lobby row.
+         The bar now holds the whole game (board + side panels), so it no
+         longer sticks — it scrolls with the page like any other card.
          Desktop and tablet layouts above are untouched. ---------- */
       @media (max-width:700px){
         .playbar{
-          position:sticky; top:8px; z-index:60;
           padding:10px 10px 12px; margin-bottom:12px;
         }
         /* Slim mode toggle: one short row, no description lines */
@@ -250,6 +268,28 @@
       }
       .real-actions{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
       .real-actions .btn{ width:100%; }
+      /* ---------- auto-spin toggle (Real Mode) ---------- */
+      .autospin-row{
+        display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+        border:2px dashed var(--line); border-radius:6px; background:var(--panel2);
+        padding:9px 12px; margin-top:10px;
+      }
+      .autospin-row .as-label{ font-weight:700; font-size:14px; }
+      .autospin-row .as-state{ font-size:12.5px; color:var(--ink-dim); }
+      .switch{ position:relative; display:inline-block; width:52px; height:28px; flex:0 0 auto; }
+      .switch input{ position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; }
+      .switch .track{
+        position:absolute; inset:0; border-radius:999px; pointer-events:none;
+        background:var(--panel); border:2px solid var(--line); transition:background .15s ease, border-color .15s ease;
+      }
+      .switch .track::after{
+        content:""; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+        background:var(--ink-dim); transition:left .15s ease, background .15s ease;
+      }
+      .switch input:checked + .track{ background:var(--gold-soft); border-color:var(--gold); }
+      .switch input:checked + .track::after{ left:26px; background:var(--gold); }
+      .switch input:focus-visible + .track{ outline:3px solid var(--purple); outline-offset:2px; }
+      .spin-status{ font-size:13px; line-height:1.55; margin-top:8px; color:var(--ink); }
       /* ---------- live lobby-waiting (Real Mode, phase Filling) ---------- */
       .lobby-waiting{
         border:3px solid var(--gold); background:var(--gold-soft); border-radius:6px;
@@ -544,10 +584,10 @@
         <span class="formula">Final-tile seed: <b>(block × 2654435761 + 97) mod 100</b> → 0–49 FULL · 50–79 HALF · 80–99 EMPTY</span>
       </div>
 
-      <!-- PLAY BAR: everything needed to start or join a game lives here,
-           directly above the board — mode, lobby size, wallet connect,
-           Join, plus the live pot / players count. Nothing required to
-           start or join sits below the board. -->
+      <!-- PLAY BAR + GAME: everything for the game lives in this one card —
+           mode, lobby size, wallet connect and Join on top, then the board
+           itself directly under the lobby picker, with every control used
+           during play in the side column beside the board. -->
       <div class="card playbar" id="playBar">
         <div class="mode-toggle" role="group" aria-label="Game mode">
           <button class="mode-btn sel" id="modePracticeBtn" type="button">🎮 Practice Mode<small>Free demo with practice SQK and bot players — no wallet needed</small></button>
@@ -589,95 +629,12 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="real-contract-bar hidden" id="realContractBar">
-        <div>
-          <span class="badge ok">Sepolia testnet</span><span class="badge warn">Unaudited</span><span class="badge">Test tokens — no real value</span>
-        </div>
-        <div style="margin-top:8px;">Game contract: <span class="rc-addr">0x7042Fa3563706eAcc8688AF9C3bBcf4Ae1C6F212</span></div>
-        <div class="copy-row" style="margin-top:8px;">
-          <button class="btn sm gold copy-contract-btn" type="button">Copy contract address</button>
-          <span class="copied hidden copy-contract-done">✓ Copied</span>
-          <a class="btn sm" href="https://sepolia.etherscan.io/address/0x7042Fa3563706eAcc8688AF9C3bBcf4Ae1C6F212" target="_blank" rel="noopener">View on Etherscan ↗</a>
-          <span class="small">SQK token: <span class="mono">0xd78a3956cF63164d1Fa1C622ad3c66623162Fa1e</span> · Creator fee address: <span class="mono">0x8a53644c0CF45EFc0247E8e01d24607b870793C4</span></span>
-        </div>
-      </div>
-
-      <div class="layout">
-        <!-- LEFT: mode note + real-mode panel + treasury (info & in-game actions) -->
-        <div>
-          <div class="mode-note" id="modeNote">
-            <b>Practice mode is ON.</b> This build runs the full game locally with practice SQK and bot players, so anyone — including Genesis reviewers — can play without a wallet or real tokens. The on-chain version uses the exact same rules; the Solidity contract is at the bottom of this page.
-          </div>
-
-          <div class="card real-panel hidden" id="realPanel">
-            <h2>⛓ REAL MODE — <span class="accent">SEPOLIA</span></h2>
-            <p class="small" style="margin-top:0;">This panel talks to the deployed contract — no demo ledger. Every action below is a real Sepolia transaction signed in MetaMask and paid for with Sepolia ETH gas. SQK on Sepolia is a test token with <b>no real value</b>, and the contract is <b>unaudited</b>.</p>
-            <div class="stat-row"><span>Contract</span><b class="mono" style="font-size:11px;">0x7042…6F212</b></div>
-            <div class="stat-row"><span>Network</span><b id="realNetStatus">Not checked</b></div>
-            <div class="stat-row"><span>Your address</span><b class="mono" id="realAddr" style="font-size:12px;">Not connected</b></div>
-            <div class="stat-row"><span>Your SQK balance (on-chain)</span><b><span id="realBal">—</span> SQK</b></div>
-            <div class="low-bal hidden" id="realLowBal">⚠ Your SQK balance is below the 20 SQK entry. You need at least 20 SQK in this wallet to join a real game (18 SQK to the prize pot + 2 SQK creator fee) — plus a little Sepolia ETH for gas.</div>
-            <div class="low-bal hidden" id="realWrongNet" style="border-color:var(--gold); background:var(--gold-soft);">⚠ MetaMask is not on Sepolia. Real Mode only works on Sepolia testnet (chain ID 11155111) — use the switch button and MetaMask will ask you to confirm.</div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
-              <button class="btn sm hidden" id="realRefreshBalBtn" type="button">Refresh balance</button>
-            </div>
-            <p class="small" id="realWalletMsg" style="margin:10px 0 0;">No wallet connected yet. Connect with the <b>Connect Wallet</b> button in the play bar above the board. If MetaMask is not installed, install it, create or import a wallet, and add the Sepolia network — then connect there.</p>
-
-            <div style="border-top:2px dashed var(--line); margin-top:14px; padding-top:12px;">
-              <div class="r-title" style="font-family:'Press Start 2P',monospace; font-size:11px; line-height:1.7;">ON-CHAIN GAME — AUTO LOBBY</div>
-              <p class="small" style="margin:6px 0 0;">Pick a lobby size in the play bar above the board — <b>QUICK 4, CLASSIC 9 or BIG 16</b> — then press Join there. The site automatically finds the newest open lobby of that size on the contract, or creates a new one if none is open. <b>You never type a game ID.</b> Joining runs, in order: <b>create if needed, 1) approve 20 SQK, 2) joinLobby</b> — you just confirm each transaction in MetaMask. The live lobby status sits in the play bar, and the waiting banner appears there and above the board.</p>
-              <p class="small" style="margin:8px 0 0;">After you join, stay on this page: while the lobby is filling this page checks the contract every few seconds, shows each new player as they join, and the game starts automatically the moment the lobby is full — you do not press anything else.</p>
-              <div class="lobby-waiting hidden" id="realWaitingBox" role="status" aria-live="polite">
-                <div class="lw-head" id="realWaitingHeadline">Waiting for players: — / —</div>
-                <div class="lw-slots" id="realWaitingSlots" aria-hidden="true"></div>
-                <div class="lw-sub">Game <b class="mono" id="realWaitingGame">—</b> <span style="color:var(--ink-dim)">(info only)</span> — live from the contract. The game starts automatically when the last player joins.</div>
-                <ul class="lw-players" id="realWaitingPlayers"></ul>
-                <div class="lw-updated" id="realWaitingUpdated">Checking the contract…</div>
-              </div>
-              <div class="small" id="realGameStatus" style="margin-top:10px;">No lobby joined yet. Pick a size in the play bar above the board and press Join there — the site will find an open lobby or create one for you.</div>
-              <div id="realLiveStats" style="margin-top:6px;"></div>
-              <ul class="tx-list" id="realTxList"></ul>
-            </div>
-
-            <div style="border-top:2px dashed var(--line); margin-top:14px; padding-top:12px;">
-              <div style="font-family:'Press Start 2P',monospace; font-size:11px; line-height:1.7;">IN-GAME ACTIONS (ON-CHAIN)</div>
-              <p class="small" style="margin:6px 0 0;">Same rules as Practice Mode, driven by the contract: 10-second spin, raises of +20 SQK with a 30-second decision window and a separate 60-second transaction window. Anyone can call Spin / Open Tx Window / Settle once the contract's timers allow it.</p>
-              <div class="real-actions">
-                <button class="btn sm purple" id="realSpinBtn" type="button">Spin &amp; eliminate</button>
-                <button class="btn sm purple" id="realProposeBtn" type="button">Propose raise +20</button>
-                <button class="btn sm teal" id="realAcceptBtn" type="button">Accept raise</button>
-                <button class="btn sm red" id="realDeclineBtn" type="button">Decline raise</button>
-                <button class="btn sm" id="realOpenTxBtn" type="button">Open tx window</button>
-                <button class="btn sm gold" id="realConfirmTxBtn" type="button">Confirm raise tx (+20)</button>
-                <button class="btn sm" id="realMarkFailBtn" type="button">Mark my tx failed</button>
-                <button class="btn sm" id="realSettleBtn" type="button">Settle raise</button>
-                <button class="btn sm purple" id="realDrawBtn" type="button">Treasury draw</button>
-                <button class="btn sm" id="realPollBtn" type="button">Refresh state now</button>
-              </div>
-              <p class="small" style="margin:10px 0 0;">Confirm raise tx also approves 20 SQK first if your allowance is too low. Treasury draw works once 1,800 blocks have passed since the last draw and the treasury holds SQK.</p>
-            </div>
-          </div>
-
-          <div class="card">
-            <h2>🏦 TREASURY</h2>
-            <div class="stat-row"><span>Treasury balance</span><b><span id="treasuryBal">0</span> SQK</b></div>
-            <div class="stat-row"><span>Creator fees collected</span><b><span id="creatorFees">0</span> SQK</b></div>
-            <div class="stat-row"><span>Entrants this draw period</span><b id="entrantsToday">0</b></div>
-            <div class="stat-row"><span>Games this draw period</span><b id="gamesToday">0</b></div>
-            <div class="stat-row"><span>Next draw block</span><b id="nextDrawBlock">—</b></div>
-            <div class="stat-row"><span>Blocks until draw</span><b id="blocksToDraw">—</b></div>
-            <p class="small">When a final tile lands HALF or EMPTY, that share of the pot moves here. Every 1,800 blocks (Sepolia makes a block about every 12 seconds, so roughly every 6 hours) anyone can trigger the draw: the whole treasury is raffled among all addresses that entered a game before that draw block and airdropped to one winner.</p>
-            <button class="btn purple block" id="drawBtn" disabled>Run the treasury draw</button>
-            <div style="height:10px"></div>
-            <div class="winners-list" id="drawWinners"><span class="small">No draws yet.</span></div>
-          </div>
-        </div>
-
-        <!-- CENTER: board -->
-        <div class="board-col">
-          <div class="card">
+        <!-- GAME ZONE: the board sits directly under the lobby picker,
+             inside this same card, and everything used during play —
+             final tile, on-chain actions, raise panel, game log —
+             sits in the side column right beside the board. -->
+        <div class="game-zone">
+          <div class="gz-board">
             <div class="board-head">
               <span class="round-label" id="roundLabel">NO GAME RUNNING</span>
               <span class="small" id="aliveLabel"></span>
@@ -708,15 +665,12 @@
             <div id="boardArea">
               <div class="empty-board">
                 <div class="px">THE BOARD IS EMPTY</div>
-                <p>Pick a 4, 9 or 16 player lobby in the play bar above and join.<br/>The tiles always form a perfect square — 5 or 7 players can never start a game.</p>
+                <p>Pick a 4, 9 or 16 player lobby above and join.<br/>The tiles always form a perfect square — 5 or 7 players can never start a game.</p>
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- RIGHT: final tile + raise + log -->
-        <div>
-          <div class="card">
+          <div class="gz-side">
+          <div class="side-panel">
             <h2>★ THE FINAL <span class="accent">TILE</span></h2>
             <div class="final-tile">
               <div class="ft-label">PRIZE LOCKED INSIDE</div>
@@ -730,7 +684,34 @@
             <p class="small">The final tile's tier is fixed by formula the moment the game starts, from the Squeekchain block produced at that moment. Nobody — not even the creator — can change it afterwards.</p>
           </div>
 
-          <div class="card raise-panel hidden" id="raisePanel">
+          <div class="side-panel hidden" id="realActionsPanel">
+              <div style="font-family:'Press Start 2P',monospace; font-size:11px; line-height:1.7;">IN-GAME ACTIONS (ON-CHAIN)</div>
+              <p class="small" style="margin:6px 0 0;">Same rules as Practice Mode, driven by the contract: 10-second spin, raises of +20 SQK with a 30-second decision window and a separate 60-second transaction window. <b>The spin is automatic:</b> with Auto-spin on, this page sends the spin by itself the moment the contract's 10 seconds are up — MetaMask just asks you to confirm each round. The Spin button stays locked with a countdown until the spin is actually ready, so an early press can never send a transaction that fails. Anyone can call Open Tx Window / Settle once the contract's timers allow it.</p>
+              <div class="autospin-row">
+                <label class="switch" for="realAutoSpinToggle">
+                  <input type="checkbox" id="realAutoSpinToggle" checked />
+                  <span class="track" aria-hidden="true"></span>
+                </label>
+                <span class="as-label">Auto-spin</span>
+                <span class="as-state" id="realAutoSpinState">ON — spins fire by themselves each round; you only confirm in MetaMask.</span>
+              </div>
+              <div class="spin-status" id="realSpinStatus" role="status" aria-live="polite">Join a game and the spin status will show here.</div>
+              <div class="real-actions">
+                <button class="btn sm purple" id="realSpinBtn" type="button">Spin &amp; eliminate</button>
+                <button class="btn sm purple" id="realProposeBtn" type="button">Propose raise +20</button>
+                <button class="btn sm teal" id="realAcceptBtn" type="button">Accept raise</button>
+                <button class="btn sm red" id="realDeclineBtn" type="button">Decline raise</button>
+                <button class="btn sm" id="realOpenTxBtn" type="button">Open tx window</button>
+                <button class="btn sm gold" id="realConfirmTxBtn" type="button">Confirm raise tx (+20)</button>
+                <button class="btn sm" id="realMarkFailBtn" type="button">Mark my tx failed</button>
+                <button class="btn sm" id="realSettleBtn" type="button">Settle raise</button>
+                <button class="btn sm purple" id="realDrawBtn" type="button">Treasury draw</button>
+                <button class="btn sm" id="realPollBtn" type="button">Refresh state now</button>
+              </div>
+              <p class="small" style="margin:10px 0 0;">Confirm raise tx also approves 20 SQK first if your allowance is too low. Treasury draw works once 1,800 blocks have passed since the last draw and the treasury holds SQK.</p>
+          </div>
+
+          <div class="side-panel raise-panel hidden" id="raisePanel">
             <div class="r-title">⚡ RAISE PROPOSED</div>
             <p class="small" style="color:var(--ink); margin:0 0 8px;" id="raiseText"></p>
             <div class="timerbar"><i id="raiseFill"></i></div>
@@ -753,12 +734,82 @@
             </div>
           </div>
 
-          <div class="card">
+          <div class="side-panel">
             <h2>📜 GAME <span class="accent">LOG</span></h2>
             <div class="log" id="gameLog">
               <div><span class="lt">—</span> Welcome to Squeek Tiles. Connect a wallet and join a lobby.</div>
             </div>
           </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <!-- BELOW THE GAME: mode note + treasury | real-mode info panel -->
+        <div>
+          <div class="mode-note" id="modeNote">
+            <b>Practice mode is ON.</b> This build runs the full game locally with practice SQK and bot players, so anyone — including Genesis reviewers — can play without a wallet or real tokens. The on-chain version uses the exact same rules; the Solidity contract is at the bottom of this page.
+          </div>
+
+          <div class="card">
+            <h2>🏦 TREASURY</h2>
+            <div class="stat-row"><span>Treasury balance</span><b><span id="treasuryBal">0</span> SQK</b></div>
+            <div class="stat-row"><span>Creator fees collected</span><b><span id="creatorFees">0</span> SQK</b></div>
+            <div class="stat-row"><span>Entrants this draw period</span><b id="entrantsToday">0</b></div>
+            <div class="stat-row"><span>Games this draw period</span><b id="gamesToday">0</b></div>
+            <div class="stat-row"><span>Next draw block</span><b id="nextDrawBlock">—</b></div>
+            <div class="stat-row"><span>Blocks until draw</span><b id="blocksToDraw">—</b></div>
+            <p class="small">When a final tile lands HALF or EMPTY, that share of the pot moves here. Every 1,800 blocks (Sepolia makes a block about every 12 seconds, so roughly every 6 hours) anyone can trigger the draw: the whole treasury is raffled among all addresses that entered a game before that draw block and airdropped to one winner.</p>
+            <button class="btn purple block" id="drawBtn" disabled>Run the treasury draw</button>
+            <div style="height:10px"></div>
+            <div class="winners-list" id="drawWinners"><span class="small">No draws yet.</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="card real-panel hidden" id="realPanel">
+            <h2>⛓ REAL MODE — <span class="accent">SEPOLIA</span></h2>
+            <p class="small" style="margin-top:0;">This panel talks to the deployed contract — no demo ledger. Every action below is a real Sepolia transaction signed in MetaMask and paid for with Sepolia ETH gas. SQK on Sepolia is a test token with <b>no real value</b>, and the contract is <b>unaudited</b>.</p>
+            <div class="stat-row"><span>Contract</span><b class="mono" style="font-size:11px;">0x7042…6F212</b></div>
+            <div class="stat-row"><span>Network</span><b id="realNetStatus">Not checked</b></div>
+            <div class="stat-row"><span>Your address</span><b class="mono" id="realAddr" style="font-size:12px;">Not connected</b></div>
+            <div class="stat-row"><span>Your SQK balance (on-chain)</span><b><span id="realBal">—</span> SQK</b></div>
+            <div class="low-bal hidden" id="realLowBal">⚠ Your SQK balance is below the 20 SQK entry. You need at least 20 SQK in this wallet to join a real game (18 SQK to the prize pot + 2 SQK creator fee) — plus a little Sepolia ETH for gas.</div>
+            <div class="low-bal hidden" id="realWrongNet" style="border-color:var(--gold); background:var(--gold-soft);">⚠ MetaMask is not on Sepolia. Real Mode only works on Sepolia testnet (chain ID 11155111) — use the switch button and MetaMask will ask you to confirm.</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+              <button class="btn sm hidden" id="realRefreshBalBtn" type="button">Refresh balance</button>
+            </div>
+            <p class="small" id="realWalletMsg" style="margin:10px 0 0;">No wallet connected yet. Connect with the <b>Connect Wallet</b> button in the play bar above the board. If MetaMask is not installed, install it, create or import a wallet, and add the Sepolia network — then connect there.</p>
+
+            <div style="border-top:2px dashed var(--line); margin-top:14px; padding-top:12px;">
+              <div class="r-title" style="font-family:'Press Start 2P',monospace; font-size:11px; line-height:1.7;">ON-CHAIN GAME — AUTO LOBBY</div>
+              <p class="small" style="margin:6px 0 0;">Pick a lobby size in the play bar above the board — <b>QUICK 4, CLASSIC 9 or BIG 16</b> — then press Join there. The site automatically finds the newest open lobby of that size on the contract, or creates a new one if none is open. <b>You never type a game ID.</b> Joining runs, in order: <b>create if needed, 1) approve 20 SQK, 2) joinLobby</b> — you just confirm each transaction in MetaMask. The live lobby status sits in the play bar, and the waiting banner appears there and above the board.</p>
+              <p class="small" style="margin:8px 0 0;">After you join, stay on this page: while the lobby is filling this page checks the contract every few seconds, shows each new player as they join, and the game starts automatically the moment the lobby is full — you do not press anything else.</p>
+              <div class="lobby-waiting hidden" id="realWaitingBox" role="status" aria-live="polite">
+                <div class="lw-head" id="realWaitingHeadline">Waiting for players: — / —</div>
+                <div class="lw-slots" id="realWaitingSlots" aria-hidden="true"></div>
+                <div class="lw-sub">Game <b class="mono" id="realWaitingGame">—</b> <span style="color:var(--ink-dim)">(info only)</span> — live from the contract. The game starts automatically when the last player joins.</div>
+                <ul class="lw-players" id="realWaitingPlayers"></ul>
+                <div class="lw-updated" id="realWaitingUpdated">Checking the contract…</div>
+              </div>
+              <div class="small" id="realGameStatus" style="margin-top:10px;">No lobby joined yet. Pick a size in the play bar above the board and press Join there — the site will find an open lobby or create one for you.</div>
+              <div id="realLiveStats" style="margin-top:6px;"></div>
+              <ul class="tx-list" id="realTxList"></ul>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div class="real-contract-bar hidden" id="realContractBar">
+        <div>
+          <span class="badge ok">Sepolia testnet</span><span class="badge warn">Unaudited</span><span class="badge">Test tokens — no real value</span>
+        </div>
+        <div style="margin-top:8px;">Game contract: <span class="rc-addr">0x7042Fa3563706eAcc8688AF9C3bBcf4Ae1C6F212</span></div>
+        <div class="copy-row" style="margin-top:8px;">
+          <button class="btn sm gold copy-contract-btn" type="button">Copy contract address</button>
+          <span class="copied hidden copy-contract-done">✓ Copied</span>
+          <a class="btn sm" href="https://sepolia.etherscan.io/address/0x7042Fa3563706eAcc8688AF9C3bBcf4Ae1C6F212" target="_blank" rel="noopener">View on Etherscan ↗</a>
+          <span class="small">SQK token: <span class="mono">0xd78a3956cF63164d1Fa1C622ad3c66623162Fa1e</span> · Creator fee address: <span class="mono">0x8a53644c0CF45EFc0247E8e01d24607b870793C4</span></span>
         </div>
       </div>
 
@@ -1744,7 +1795,7 @@ contract SqueekTiles {
     $("spectatorNewBtn").addEventListener("click", function(){
       if (typeof appMode !== "undefined" && appMode === "real"){
         $("spectatorBar").classList.add("hidden");
-        $("realPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+        $("playBar").scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
       abandonGame();
@@ -2131,7 +2182,7 @@ contract SqueekTiles {
     $("playAgainBtn").addEventListener("click", function(){
       closeWinnerModal();
       if (typeof appMode !== "undefined" && appMode === "real"){
-        $("realPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+        $("playBar").scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
       if (game.running) return;
@@ -2219,7 +2270,8 @@ contract SqueekTiles {
       account: null, chainId: null, balance: null, balanceNum: null,
       gameId: null, lastState: null, round: 1, winnerShownFor: null,
       modalByReal: false, busy: false,
-      refreshing: false, startedNotifiedFor: null, lastWaitingUpdated: null, fillingSeenFor: null
+      refreshing: false, startedNotifiedFor: null, lastWaitingUpdated: null, fillingSeenFor: null,
+      autoSpin: true, spinInFlight: false, autoSpinKey: null
     };
     function realErr(e){
       var m = (e && (e.data && e.data.message || e.reason || e.message)) || String(e || "unknown error");
@@ -2252,6 +2304,7 @@ contract SqueekTiles {
       $("modeRealBtn").classList.toggle("sel", real);
       $("realContractBar").classList.toggle("hidden", !real);
       $("realPanel").classList.toggle("hidden", !real);
+      $("realActionsPanel").classList.toggle("hidden", !real);
       $("joinBtn").classList.toggle("hidden", real);
       $("joinHint").classList.toggle("hidden", real);
       $("barPracticeActions").classList.toggle("hidden", real);
@@ -2594,7 +2647,7 @@ contract SqueekTiles {
           : "⏳ Waiting for players: " + joined + " / " + total + " — <span class='lw-more'>" + remaining + " more to start</span>";
         $("realBoardWaitingSlots").innerHTML = lwSlotsHTML(st);
         $("realBoardWaitingSub").textContent = justStarted
-          ? "Game #" + st.gameId + " filled up and started on-chain by itself. The board below is live — play continues from the Real Mode panel."
+          ? "Game #" + st.gameId + " filled up and started on-chain by itself. The board below is live — play continues with the controls beside the board."
           : "Game #" + st.gameId + " (info only) — live from the contract. This updates on its own as players join; no button to press — the game starts automatically when the lobby is full.";
         $("realBoardWaitingPlayers").innerHTML = lwPlayersHTML(st, waiting);
         $("realBoardWaitingUpdated").textContent = "Live — last checked " + nowStr + ".";
@@ -2762,6 +2815,11 @@ contract SqueekTiles {
         };
         var prevSt = realState.lastState;
         realState.lastState = st;
+        // The next round is (confirmed eliminations so far) + 1. Deriving
+        // it from the chain on every poll keeps the local counter in step
+        // no matter which player sent the spin, and it can only advance
+        // when an elimination is final on-chain.
+        if (st.phase >= 1 && st.phase < 4) realState.round = st.players.length - st.aliveCount + 1;
         // Live-waiting change detection, same game only: announce each
         // new join, and the moment the contract flips Filling -> Playing
         // (the lobby filled) announce the automatic start — once.
@@ -2866,7 +2924,7 @@ contract SqueekTiles {
       if (st.phase === 0) setWheel("WAITING FOR PLAYERS: " + st.players.length + " / " + st.size, "Real game #" + st.gameId + " is filling on-chain — " + (st.size - st.players.length) + " more to start. This page polls the contract live, and the game starts automatically the moment the last player joins — no button to press.", false);
       else if (st.phase === 1){
         var readyIn = Math.max(0, st.spinReadyAt - Math.floor(Date.now() / 1000));
-        setWheel("ON-CHAIN GAME RUNNING", "The wheel's 10 seconds are counted by the contract (spin ready " + (readyIn > 0 ? "in ~" + readyIn + "s" : "now") + "). Anyone can press Spin & eliminate in the Real Mode panel once it is ready.", false);
+        setWheel("ON-CHAIN GAME RUNNING", "The wheel's 10 seconds are counted by the contract (spin ready " + (readyIn > 0 ? "in ~" + readyIn + "s" : "now") + "). " + (realState.autoSpin ? "Auto-spin is ON: this page sends the spin by itself when the timer ends — MetaMask just asks you to confirm each round." : "Auto-spin is OFF: press Spin & eliminate in the Real Mode panel once its countdown ends."), false);
       }
       else if (st.phase === 2) setWheel("RAISE OPEN — DECIDING", "A +20 SQK raise is open on-chain. The decision window ends at the contract deadline or once everyone has decided and someone opens the transaction window.", false);
       else if (st.phase === 3) setWheel("RAISE — TRANSACTION WINDOW", "Acceptors now confirm their +20 SQK on-chain. Anyone can settle the raise once every transaction is recorded or the 60 seconds are up.", false);
@@ -2953,10 +3011,14 @@ contract SqueekTiles {
     }
 
     /* ---------- in-game on-chain actions ---------- */
+    /* Runs one in-game action. Resolves true only when the transaction
+       was confirmed on-chain (sendRealTx throws on revert / rejection),
+       false on any failure — callers must not advance local state on
+       false. */
     async function realAction(label, fn, skipGame){
-      if (!ethersReady() || realState.busy) return;
+      if (!ethersReady() || realState.busy) return false;
       var gid = currentRealGameId();
-      if (!skipGame && !gid){ $("realGameStatus").textContent = "Join a lobby first — press Join above and the site will auto-find or create your game."; return; }
+      if (!skipGame && !gid){ $("realGameStatus").textContent = "Join a lobby first — press Join above and the site will auto-find or create your game."; return false; }
       try {
         requireRealSigner();
         realState.busy = true;
@@ -2964,15 +3026,120 @@ contract SqueekTiles {
         await sendRealTx(label, function(){ return fn(g, gid); });
         await refreshRealBalance();
         await refreshRealState(false);
+        return true;
       } catch (e) {
         $("realGameStatus").textContent = label + " failed: " + realErr(e);
+        return false;
       } finally { realState.busy = false; }
     }
-    $("realSpinBtn").addEventListener("click", function(){
+    /* ---------- spin: manual (gated) + automatic ----------
+       The contract reverts spinAndEliminate while block.timestamp <
+       spinReadyAt ("wheel still spinning"), so the page never sends a
+       spin before the on-chain timer is up: the button stays disabled
+       with a live countdown, and auto-spin fires only once the spin is
+       ready. The local round counter advances ONLY after a spin
+       transaction is confirmed on-chain — never when it is merely sent
+       and never when it fails — because the round feeds the contract's
+       elimination roll and must stay in step with confirmed rounds. */
+    function spinSecondsLeft(st){
+      if (!st) return null;
+      return Math.max(0, st.spinReadyAt - Math.floor(Date.now() / 1000));
+    }
+    async function doRealSpin(auto){
+      if (realState.spinInFlight || realState.busy) return false;
       var gid = currentRealGameId();
+      if (!gid) { if (!auto) $("realGameStatus").textContent = "Join a lobby first — press Join above and the site will auto-find or create your game."; return false; }
+      var st = realState.lastState;
+      if (!st || st.gameId !== gid || st.phase !== 1){
+        if (!auto) $("realGameStatus").textContent = "The spin only runs while the game is in the Playing phase — check the live phase above.";
+        return false;
+      }
+      var left = spinSecondsLeft(st);
+      if (left > 0){
+        if (!auto) $("realGameStatus").textContent = "Too early — the contract unlocks the spin in " + left + "s (spinReadyAt). The button unlocks by itself; no transaction was sent.";
+        return false;
+      }
       var round = realState.round || 1;
-      realAction("Spin & eliminate (game #" + gid + ", round " + round + ")", function(g, id){ return g.spinAndEliminate(id, round); })
-        .then(function(){ realState.round = round + 1; });
+      realState.spinInFlight = true;
+      try {
+        var ok = await realAction("Spin & eliminate (game #" + gid + ", round " + round + ")", function(g, id){ return g.spinAndEliminate(id, round); });
+        if (ok) realState.round = round + 1; // confirmed on-chain — only now may the round advance
+        return ok;
+      } finally { realState.spinInFlight = false; }
+    }
+    /* Fires the spin by itself once per on-chain round. The attempt is
+       keyed to (gameId, spinReadyAt): if the user rejects the MetaMask
+       prompt or the tx fails, the same round is not re-prompted every
+       second — auto-spin resumes by itself when the next round's
+       spinReadyAt appears, and the manual button always works. */
+    function maybeAutoSpin(){
+      if (appMode !== "real" || !realState.autoSpin) return;
+      if (realState.spinInFlight || realState.busy || !realState.account) return;
+      var st = realState.lastState;
+      if (!st || st.phase !== 1 || st.gameId !== currentRealGameId()) return;
+      if (spinSecondsLeft(st) > 0) return;
+      var key = st.gameId + ":" + st.spinReadyAt;
+      if (realState.autoSpinKey === key) return;
+      realState.autoSpinKey = key;
+      logLine("Real Mode: spin is ready — Auto-spin is sending round " + (realState.round || 1) + " of game <b>#" + st.gameId + "</b>. Confirm it in MetaMask.", "purp");
+      doRealSpin(true);
+    }
+    /* 1-second ticker: live countdown on the Spin button + status line,
+       and the auto-spin trigger. Runs only while Real Mode is on screen. */
+    function realSpinTick(){
+      if (appMode !== "real") return;
+      var btn = $("realSpinBtn"), status = $("realSpinStatus");
+      var st = realState.lastState;
+      var gid = currentRealGameId();
+      if (!gid || !st || st.gameId !== gid){
+        btn.disabled = false;
+        btn.textContent = "Spin & eliminate";
+        status.textContent = "Join a game and the spin status will show here.";
+      } else if (st.phase === 0){
+        btn.disabled = true;
+        btn.textContent = "Spin & eliminate";
+        status.textContent = "Lobby still filling (" + st.players.length + " / " + st.size + ") — the spin unlocks once the game starts.";
+      } else if (st.phase === 1){
+        if (realState.spinInFlight){
+          btn.disabled = true;
+          btn.textContent = "Spin sent — confirming…";
+          status.textContent = "Spin transaction sent — waiting for it to confirm on-chain…";
+        } else {
+          var left = spinSecondsLeft(st);
+          if (left > 0){
+            btn.disabled = true;
+            btn.textContent = "Spin ready in " + left + "s";
+            status.textContent = realState.autoSpin
+              ? "⏳ Round " + (realState.round || 1) + " — spin unlocks in " + left + "s. Auto-spin is ON: it fires by itself at 0, MetaMask will ask you to confirm."
+              : "⏳ Round " + (realState.round || 1) + " — spin unlocks in " + left + "s. Auto-spin is OFF: the button unlocks at 0, press it then.";
+          } else {
+            btn.disabled = !!realState.busy;
+            btn.textContent = "Spin & eliminate";
+            status.textContent = realState.autoSpin
+              ? "✅ Round " + (realState.round || 1) + " — spin is ready. Auto-spin is sending it now; confirm in MetaMask."
+              : "✅ Round " + (realState.round || 1) + " — spin is ready. Press Spin & eliminate.";
+          }
+        }
+      } else if (st.phase === 2 || st.phase === 3){
+        btn.disabled = true;
+        btn.textContent = "Spin & eliminate";
+        status.textContent = "A raise is open on-chain — the wheel is paused until the raise is settled.";
+      } else {
+        btn.disabled = true;
+        btn.textContent = "Spin & eliminate";
+        status.textContent = "Game #" + st.gameId + " is finished — the wheel has stopped.";
+      }
+      maybeAutoSpin();
+    }
+    setInterval(realSpinTick, 1000);
+    $("realSpinBtn").addEventListener("click", function(){ doRealSpin(false); });
+    $("realAutoSpinToggle").addEventListener("change", function(){
+      realState.autoSpin = !!this.checked;
+      $("realAutoSpinState").textContent = realState.autoSpin
+        ? "ON — spins fire by themselves each round; you only confirm in MetaMask."
+        : "OFF — you press Spin & eliminate yourself once its countdown ends.";
+      logLine("Real Mode: Auto-spin turned <b>" + (realState.autoSpin ? "ON" : "OFF") + "</b>.", "purp");
+      realSpinTick();
     });
     $("realProposeBtn").addEventListener("click", function(){ realAction("Propose raise +20 SQK", function(g, id){ return g.proposeRaise(id); }); });
     $("realAcceptBtn").addEventListener("click", function(){ realAction("Accept raise", function(g, id){ return g.acceptRaise(id); }); });
