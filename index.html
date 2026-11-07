@@ -2830,6 +2830,10 @@ contract SqueekTiles {
     function leaveRealGameView(){
       var gid = realState.gameId;
       realState.gameId = null;
+      // Remember the deliberate leave so the poller's re-attach scan
+      // does not immediately start following this same game again; an
+      // explicit button press (e.g. Open Tx Window) may still act on it.
+      realState.leftGameId = gid;
       realState.lastState = null;
       realState.modalByReal = false;
       realState.autoRaiseKey = null;
@@ -2926,6 +2930,7 @@ contract SqueekTiles {
           logLine("Real Mode: auto-lobby created new game <b>#" + gid + "</b> (" + size + " players).", "gold");
         }
         realState.gameId = gid;
+        realState.leftGameId = null;
         realState.round = 1;
         realState.winnerShownFor = null;
         realState.fillingSeenFor = gid;
@@ -2970,6 +2975,25 @@ contract SqueekTiles {
         var treasuryNum = Number(ethers.utils.formatUnits(treasuryBn, 18));
         renderRealTreasury(treasuryNum, lastDraw, blockNum);
         var gid = currentRealGameId();
+        if (!gid && realState.account){
+          // The page tracks no game (fresh load, or the view was left):
+          // re-attach by itself to the wallet's in-progress on-chain
+          // game, throttled, and never to a game whose view the user
+          // deliberately left. Once re-attached, the board, the raise
+          // auto-advance and the manual buttons all act on that game.
+          var nowAdopt = Date.now();
+          if (nowAdopt - (realState.adoptTryAt || 0) > 20000){
+            realState.adoptTryAt = nowAdopt;
+            try {
+              var cand2 = await findTrackedGameCandidate(realState.leftGameId || null);
+              if (cand2){
+                realState.gameId = cand2.gameId;
+                gid = cand2.gameId;
+                logLine("Real Mode: this page was not following any game (a page reload clears the tracked game), so it re-attached by itself to the in-progress on-chain game <b>#" + gid + "</b>.", "purp");
+              }
+            } catch (e) {}
+          }
+        }
         if (!gid){
           $("realGameStatus").textContent = "Contract is live on Sepolia: " + (nextId - 1) + " game(s) created so far. Treasury holds " + treasuryNum.toLocaleString("en-US") + " SQK · last draw block #" + lastDraw.toLocaleString("en-US") + " · next draw from block #" + (lastDraw + 1800).toLocaleString("en-US") + (blockNum ? " · Sepolia block #" + blockNum.toLocaleString("en-US") : "") + ". Pick a lobby size in the play bar above the board and press Join there — the site will auto-find an open lobby or create one.";
           $("realLiveStats").innerHTML = "";
@@ -3246,19 +3270,39 @@ contract SqueekTiles {
        false on any failure — callers must not advance local state on
        false. */
     async function realAction(label, fn, skipGame){
-      if (!ethersReady() || realState.busy) return false;
+      // Never fail silently: every blocked or failed action writes to
+      // the Game Log (right beside the action buttons) as well as the
+      // status line, so a press can never look like "nothing happened".
+      if (!ethersReady()){ logLine("Real Mode: " + label + " was not sent — the web3 library (ethers.js) is not loaded. Reload the page and try again.", "bad"); return false; }
+      if (realState.busy){
+        var busyMsg = label + " was not sent — another Real Mode transaction from this page is still waiting on MetaMask. Confirm or reject that pending prompt first, then press again.";
+        $("realGameStatus").textContent = busyMsg;
+        logLine("Real Mode: " + busyMsg, "bad");
+        return false;
+      }
       var gid = currentRealGameId();
-      if (!skipGame && !gid){ $("realGameStatus").textContent = "Join a lobby first — press Join above and the site will auto-find or create your game."; return false; }
+      if (!skipGame && !gid){
+        var noGameMsg = label + " was not sent — this page is not following any game right now (the tracked game id is kept only in memory, so a page reload or leaving the view clears it). The page re-attaches to your in-progress game by itself on its next contract poll — or press Open Tx Window, which looks the game up on-chain first.";
+        $("realGameStatus").textContent = noGameMsg;
+        logLine("Real Mode: " + noGameMsg, "bad");
+        return false;
+      }
+      var sent = false;
       try {
         requireRealSigner();
         realState.busy = true;
         var g = signerGame();
+        sent = true;
         await sendRealTx(label, function(){ return fn(g, gid); });
         await refreshRealBalance();
         await refreshRealState(false);
         return true;
       } catch (e) {
         $("realGameStatus").textContent = label + " failed: " + realErr(e);
+        // sendRealTx already logged a sent transaction's failure; log
+        // the failures that happen before anything was sent (no wallet,
+        // wrong network) so they reach the Game Log too.
+        if (!sent) logLine("Real Mode: " + label + " failed — " + realErr(e), "bad");
         return false;
       } finally { realState.busy = false; }
     }
@@ -3365,6 +3409,109 @@ contract SqueekTiles {
         : realAction(label, function(g, id){ return g.settleRaise(id); });
       Promise.resolve(p).catch(function(){}).then(function(){ realState.raiseInFlight = false; });
     }
+    /* ---------- re-attaching to the current on-chain game ----------
+       The tracked game id (realState.gameId) is set only by the Join
+       flow and lives only in memory: reload the page (e.g. after
+       uploading a new build) or leave a game's view, and the page no
+       longer follows ANY game — refreshRealState() had nothing to load,
+       maybeAutoRaise() never fired, and every in-game button hit
+       realAction()'s "no game" guard, which used to return with only a
+       status line far from the buttons: no Game Log entry, no MetaMask
+       popup, nothing. That is how a game could sit stuck in RaiseOpen
+       with its deadline long past while Open Tx Window "did nothing".
+       findTrackedGameCandidate() repairs that: it scans the contract
+       newest-first for an in-progress game (phases 1–3), preferring one
+       the connected wallet is playing in, and otherwise the newest game
+       sitting in a raise window — openTxWindow / settleRaise are
+       permissionless, so any connected wallet may advance those.
+       skipId excludes a game whose view the user deliberately left. */
+    async function findTrackedGameCandidate(skipId){
+      var rg = readGame();
+      var nextId = Number(await rg.nextGameId());
+      var mineInProgress = null, anyRaise = null;
+      for (var gid = nextId - 1; gid >= 1; gid--){
+        if (skipId && gid === skipId) continue;
+        var g;
+        try { g = await rg.games(gid); } catch (e) { continue; }
+        var phase = Number(g.phase);
+        if (phase === 0 || phase === 4) continue; // filling is the Join flow's job; finished needs nothing
+        var size = Number(g.size);
+        var mine = false;
+        if (realState.account){
+          for (var i = 0; i < size; i++){
+            var addr;
+            try { addr = await rg.players(gid, i); } catch (e) { break; }
+            if (!addr || addr === "0x0000000000000000000000000000000000000000") break;
+            if (addr.toLowerCase() === realState.account.toLowerCase()){ mine = true; break; }
+          }
+        }
+        var cand = { gameId: gid, phase: phase, raiseDeadline: Number(g.raiseDeadline), txDeadline: Number(g.txDeadline), mine: mine };
+        if (mine && !mineInProgress) mineInProgress = cand;
+        if ((phase === 2 || phase === 3) && !anyRaise) anyRaise = cand;
+        if (mineInProgress && anyRaise) break;
+      }
+      return mineInProgress || anyRaise || null;
+    }
+    /* Manual Open Tx Window: never a dead click. It logs the press,
+       re-attaches to the current on-chain game first when the page is
+       not tracking one, checks straight from the contract that the game
+       really is in RaiseOpen with its decision window closable (deadline
+       passed or everyone decided), says so in the Game Log when it is
+       not — and only then sends openTxWindow for that game. */
+    async function doOpenTxWindow(){
+      logLine("Real Mode: <b>Open Tx Window</b> pressed — checking the contract for the current game…", "purp");
+      if (!ethersReady()){ logLine("Real Mode: Open Tx Window was not sent — the web3 library (ethers.js) is not loaded. Reload the page and try again.", "bad"); return; }
+      if (realState.busy){
+        var busyMsg2 = "Open Tx Window was not sent — another Real Mode transaction from this page is still waiting on MetaMask. Confirm or reject that pending prompt first, then press again.";
+        $("realGameStatus").textContent = busyMsg2;
+        logLine("Real Mode: " + busyMsg2, "bad");
+        return;
+      }
+      if (!realState.account){
+        var noWalletMsg = "Open Tx Window was not sent — no wallet is connected. Connect MetaMask in the Real Mode panel first.";
+        $("realGameStatus").textContent = noWalletMsg;
+        logLine("Real Mode: " + noWalletMsg, "bad");
+        return;
+      }
+      var gid = currentRealGameId();
+      if (!gid){
+        var cand = null;
+        try { cand = await findTrackedGameCandidate(null); } catch (e) {}
+        if (cand){
+          gid = cand.gameId;
+          realState.gameId = gid;
+          realState.leftGameId = null;
+          logLine("Real Mode: this page was not following any game (a page reload or leaving the view clears the tracked game id), so Open Tx Window re-attached to on-chain game <b>#" + gid + "</b> first.", "purp");
+        }
+      }
+      if (!gid){
+        var noGameMsg2 = "Open Tx Window was not sent — no in-progress game was found on the contract for this wallet, and no game is sitting in a raise window. Join a lobby first.";
+        $("realGameStatus").textContent = noGameMsg2;
+        logLine("Real Mode: " + noGameMsg2, "bad");
+        return;
+      }
+      var phase = null, deadline = 0;
+      try { var gg = await readGame().games(gid); phase = Number(gg.phase); deadline = Number(gg.raiseDeadline); } catch (e) {}
+      var st = realState.lastState;
+      if (phase === null && st && st.gameId === gid){ phase = st.phase; deadline = st.raiseDeadline; }
+      if (phase !== null && phase !== 2){
+        var phaseMsg = "Open Tx Window was not sent — game #" + gid + " is in phase \u201C" + (PHASE_NAMES[phase] || phase) + "\u201D, not Raise open. It only works while a raise decision window is open.";
+        $("realGameStatus").textContent = phaseMsg;
+        logLine("Real Mode: " + phaseMsg, "bad");
+        return;
+      }
+      if (phase === 2){
+        var nowS = Math.floor(Date.now() / 1000);
+        var allDec = (st && st.gameId === gid) ? raiseAllDecided(st) : false;
+        if (!(nowS > deadline || allDec)){
+          var waitMsg = "Open Tx Window was not sent — game #" + gid + "'s decision window is still open (" + Math.max(0, deadline - nowS) + "s left, and not every alive player has decided yet). It unlocks the moment the deadline passes or everyone has decided.";
+          $("realGameStatus").textContent = waitMsg;
+          logLine("Real Mode: " + waitMsg, "bad");
+          return;
+        }
+      }
+      realAction("Open transaction window", function(g, id){ return g.openTxWindow(id); });
+    }
     /* 1-second ticker: live countdown on the Spin button + status line,
        and the auto-spin trigger. Runs only while Real Mode is on screen. */
     function realSpinTick(){
@@ -3451,7 +3598,7 @@ contract SqueekTiles {
     $("realProposeBtn").addEventListener("click", function(){ realAction("Propose raise +20 SQK", function(g, id){ return g.proposeRaise(id); }); });
     $("realAcceptBtn").addEventListener("click", function(){ realAction("Accept raise", function(g, id){ return g.acceptRaise(id); }); });
     $("realDeclineBtn").addEventListener("click", function(){ realAction("Decline raise", function(g, id){ return g.declineRaise(id); }); });
-    $("realOpenTxBtn").addEventListener("click", function(){ realAction("Open transaction window", function(g, id){ return g.openTxWindow(id); }); });
+    $("realOpenTxBtn").addEventListener("click", function(){ doOpenTxWindow(); });
     $("realMarkFailBtn").addEventListener("click", function(){ realAction("Mark my raise tx failed", function(g, id){ return g.markRaiseTxFailed(id); }); });
     $("realSettleBtn").addEventListener("click", function(){ realAction("Settle raise", function(g, id){ return g.settleRaise(id); }); });
     $("realDrawBtn").addEventListener("click", function(){ realAction("Treasury draw", function(g){ return g.treasuryDraw(); }, true); });
