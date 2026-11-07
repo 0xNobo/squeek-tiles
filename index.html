@@ -341,11 +341,42 @@
         border:3px solid var(--ink); border-radius:6px; padding:12px 16px; margin-bottom:14px;
         box-shadow:inset 0 0 0 3px var(--line);
       }
-      .wheel-wrap{ width:104px; height:104px; flex:none; position:relative; }
+      .wheel-wrap{ width:124px; height:124px; flex:none; position:relative; }
       .wheel-wrap svg{ width:100%; height:100%; display:block; }
-      .wheel-wrap.spinning svg{ animation:spin .55s linear infinite; }
-      @keyframes spin{ to{ transform:rotate(360deg); } }
-      @media (prefers-reduced-motion: reduce){ .wheel-wrap.spinning svg{ animation-duration:2.4s; } }
+      /* The wheel and the hamster animate separately: only the rotor
+         (rim + spokes) turns, while the hamster stays upright inside it
+         and runs — bobbing body, legs swinging in a running stride.
+         Everything below is gated on .spinning, which the game only
+         sets during the 10-second spin of a round, so the moment the
+         spin ends the wheel stops and the hamster stands still. */
+      .wheel-rotor{ transform-box:fill-box; transform-origin:center; }
+      .wheel-wrap.spinning .wheel-rotor{ animation:wheel-spin .6s linear infinite; }
+      @keyframes wheel-spin{ to{ transform:rotate(360deg); } }
+      .hamster-runner{ transform-box:fill-box; transform-origin:50% 88%; }
+      .wheel-wrap.spinning .hamster-runner{ animation:hamster-bob .3s ease-in-out infinite; }
+      @keyframes hamster-bob{
+        0%,100%{ transform:translateY(0) rotate(0deg); }
+        30%{ transform:translateY(-3.5px) rotate(-2deg); }
+        55%{ transform:translateY(.5px) rotate(1deg); }
+        80%{ transform:translateY(-2.5px) rotate(-1deg); }
+      }
+      .hamster-leg{ transform-box:fill-box; transform-origin:50% 0%; }
+      .wheel-wrap.spinning .hamster-leg.leg-a{ animation:leg-swing .3s ease-in-out infinite; }
+      .wheel-wrap.spinning .hamster-leg.leg-b{ animation:leg-swing .3s ease-in-out infinite; animation-delay:-.15s; }
+      @keyframes leg-swing{
+        0%,100%{ transform:rotate(44deg); }
+        50%{ transform:rotate(-44deg); }
+      }
+      .wheel-speed{ opacity:0; transform-box:fill-box; }
+      .wheel-wrap.spinning .wheel-speed{ opacity:.9; animation:speed-dash .3s linear infinite; }
+      @keyframes speed-dash{ from{ transform:translateX(3px); } to{ transform:translateX(-3px); } }
+      @media (prefers-reduced-motion: reduce){
+        .wheel-wrap.spinning .wheel-rotor{ animation-duration:2.4s; }
+        .wheel-wrap.spinning .hamster-runner{ animation-duration:.9s; }
+        .wheel-wrap.spinning .hamster-leg.leg-a, .wheel-wrap.spinning .hamster-leg.leg-b{ animation-duration:.9s; }
+        .wheel-wrap.spinning .hamster-leg.leg-b{ animation-delay:-.45s; }
+        .wheel-wrap.spinning .wheel-speed{ animation:none; }
+      }
       .wheel-info{ min-width:0; }
       .wheel-info .w-status{ font-family:"Press Start 2P", monospace; font-size:12px; line-height:1.7; margin-bottom:6px; }
       .wheel-info .w-sub{ font-size:13.5px; color:var(--ink-dim); line-height:1.5; }
@@ -759,6 +790,7 @@
             <div class="stat-row"><span>Games this draw period</span><b id="gamesToday">0</b></div>
             <div class="stat-row"><span>Next draw block</span><b id="nextDrawBlock">—</b></div>
             <div class="stat-row"><span>Blocks until draw</span><b id="blocksToDraw">—</b></div>
+            <p class="small" id="treasurySource" style="margin:8px 0 0;">Practice ledger — switch to Real Mode for the live on-chain treasury.</p>
             <p class="small">When a final tile lands HALF or EMPTY, that share of the pot moves here. Every 1,800 blocks (Sepolia makes a block about every 12 seconds, so roughly every 6 hours) anyone can trigger the draw: the whole treasury is raffled among all addresses that entered a game before that draw block and airdropped to one winner.</p>
             <button class="btn purple block" id="drawBtn" disabled>Run the treasury draw</button>
             <div style="height:10px"></div>
@@ -1417,21 +1449,63 @@ contract SqueekTiles {
         '<span class="ha-bubble h2" aria-hidden="true">HA HA!</span>' +
         '<span class="ha-bubble h3" aria-hidden="true">hee hee!</span>';
     }
+    /* The wheel is built in layers so each part can move on its own:
+       .wheel-rotor (rim, spokes, rim bolts) is the only part that
+       rotates; the hamster is a separate side-profile runner standing
+       on the inside bottom of the wheel — it never rotates with the
+       wheel. Its four legs are .hamster-leg groups (leg-a / leg-b in
+       opposite phases) and its body is .hamster-runner; the CSS only
+       animates all of these while #wheelWrap has .spinning, i.e.
+       exactly during a round's 10-second spin. At rest the legs hang
+       straight down in a standing pose. */
     function wheelSVG(){
-      var spokes = "";
+      var spokes = "", bolts = "";
+      var boltCols = ["#2dd4bf", "#a78bfa", "#f87171", "#2dd4bf", "#a78bfa", "#f87171"];
       for (var i = 0; i < 6; i++){
-        var a = i * Math.PI / 3, x = 50 + 34 * Math.cos(a), y = 50 + 34 * Math.sin(a);
-        spokes += '<line x1="50" y1="50" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="#a78bfa" stroke-width="4"/>';
+        var a = i * Math.PI / 3;
+        var sx = 60 + 43 * Math.cos(a), sy = 60 + 43 * Math.sin(a);
+        spokes += '<line x1="60" y1="60" x2="' + sx.toFixed(1) + '" y2="' + sy.toFixed(1) + '" stroke="#a78bfa" stroke-width="4.5"/>';
+        var bx = 60 + 52 * Math.cos(a), by = 60 + 52 * Math.sin(a);
+        bolts += '<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="3.4" fill="' + boltCols[i] + '" stroke="#241a2e" stroke-width="1.4"/>';
       }
-      return '<svg viewBox="0 0 100 100" role="img" aria-label="Hamster wheel">' +
-        '<circle cx="50" cy="50" r="44" fill="none" stroke="#f5b942" stroke-width="9"/>' +
-        '<circle cx="50" cy="50" r="35" fill="none" stroke="#8a6414" stroke-width="2"/>' +
-        spokes + '<circle cx="50" cy="50" r="7" fill="#f5b942" stroke="#241a2e" stroke-width="2"/>' +
-        '<circle cx="42" cy="59" r="3.4" fill="#e8a04c" stroke="#241a2e" stroke-width="1.6"/><circle cx="58" cy="59" r="3.4" fill="#e8a04c" stroke="#241a2e" stroke-width="1.6"/>' +
-        '<circle cx="42" cy="59" r="1.6" fill="#f49ac1"/><circle cx="58" cy="59" r="1.6" fill="#f49ac1"/>' +
-        '<circle cx="50" cy="67" r="9" fill="#e8a04c" stroke="#241a2e" stroke-width="2"/>' +
-        '<circle cx="44.5" cy="69" r="2" fill="#f49ac1"/><circle cx="55.5" cy="69" r="2" fill="#f49ac1"/>' +
-        '<circle cx="47" cy="65" r="1.8" fill="#241a2e"/><circle cx="53" cy="65" r="1.8" fill="#241a2e"/><circle cx="50" cy="68" r="1.4" fill="#e75480"/></svg>';
+      return '<svg viewBox="0 0 120 120" role="img" aria-label="Hamster running on its wheel">' +
+        // stand (never moves)
+        '<line x1="60" y1="62" x2="40" y2="112" stroke="#241a2e" stroke-width="5" stroke-linecap="round"/>' +
+        '<line x1="60" y1="62" x2="80" y2="112" stroke="#241a2e" stroke-width="5" stroke-linecap="round"/>' +
+        '<line x1="28" y1="114" x2="92" y2="114" stroke="#241a2e" stroke-width="5" stroke-linecap="round"/>' +
+        // rotating part: rim + spokes + bolts + hub
+        '<g class="wheel-rotor">' +
+          '<circle cx="60" cy="60" r="52" fill="none" stroke="#f5b942" stroke-width="9"/>' +
+          '<circle cx="60" cy="60" r="44" fill="none" stroke="#8a6414" stroke-width="2"/>' +
+          spokes + bolts +
+          '<circle cx="60" cy="60" r="7" fill="#f5b942" stroke="#241a2e" stroke-width="2"/>' +
+        '</g>' +
+        // motion streaks behind the hamster, visible only while running
+        '<g class="wheel-speed" stroke="#2dd4bf" stroke-width="3.5" stroke-linecap="round">' +
+          '<line x1="13" y1="68" x2="27" y2="68"/><line x1="9" y1="79" x2="26" y2="79"/><line x1="14" y1="90" x2="25" y2="90"/>' +
+        '</g>' +
+        // the hamster: upright side-profile runner, feet on the wheel's inside bottom
+        '<g class="hamster-runner">' +
+          // far-side legs (darker, drawn behind the body)
+          '<g class="hamster-leg leg-b"><rect x="42" y="82" width="5.5" height="16" rx="2.7" fill="#b87a34" stroke="#241a2e" stroke-width="1.2"/></g>' +
+          '<g class="hamster-leg leg-a"><rect x="67" y="82" width="5.5" height="16" rx="2.7" fill="#b87a34" stroke="#241a2e" stroke-width="1.2"/></g>' +
+          // tail
+          '<circle cx="36" cy="71" r="4.5" fill="#f49ac1" stroke="#241a2e" stroke-width="1.6"/>' +
+          // body
+          '<ellipse cx="57" cy="75" rx="20" ry="12" fill="#e8a04c" stroke="#241a2e" stroke-width="2.2"/>' +
+          '<ellipse cx="59" cy="80" rx="11" ry="5.5" fill="#fff1d6"/>' +
+          // near-side legs (drawn over the body's lower edge)
+          '<g class="hamster-leg leg-a"><rect x="46" y="83" width="6" height="17" rx="3" fill="#8a5a34" stroke="#241a2e" stroke-width="1.4"/></g>' +
+          '<g class="hamster-leg leg-b"><rect x="63" y="83" width="6" height="17" rx="3" fill="#8a5a34" stroke="#241a2e" stroke-width="1.4"/></g>' +
+          // head, facing right (the running direction)
+          '<circle cx="75" cy="67" r="10.5" fill="#e8a04c" stroke="#241a2e" stroke-width="2.2"/>' +
+          '<circle cx="70" cy="57" r="5.5" fill="#e8a04c" stroke="#241a2e" stroke-width="1.8"/>' +
+          '<circle cx="70" cy="57" r="2.8" fill="#f49ac1"/>' +
+          '<circle cx="78" cy="65" r="1.9" fill="#241a2e"/>' +
+          '<circle cx="79" cy="71" r="3" fill="#f49ac1" opacity=".85"/>' +
+          '<circle cx="85.5" cy="69" r="2.3" fill="#e75480" stroke="#241a2e" stroke-width="1.2"/>' +
+        '</g>' +
+      '</svg>';
     }
     $("wheelWrap").innerHTML = wheelSVG();
 
@@ -1503,6 +1577,33 @@ contract SqueekTiles {
     /* ---------- global day state ---------- */
     var day = { treasury: 0, creatorFees: 0, entrants: {}, entrantList: [], games: 0, draws: [], nextDrawBlock: chain.height, lastDrawBlock: chain.height - DRAW_INTERVAL };
     function renderDay(){
+      // In Real Mode the Treasury card shows the live on-chain treasury,
+      // not the practice ledger — never overwrite it with day.treasury (0).
+      try {
+        if (typeof appMode !== "undefined" && appMode === "real" && window.__realTreasury && window.__realTreasury.fetched){
+          var rt = window.__realTreasury;
+          $("treasuryBal").textContent = Number(rt.value).toLocaleString("en-US", { maximumFractionDigits: 4 });
+          var rnb = $("nextDrawBlock"), rbb = $("blocksToDraw");
+          if (rnb) rnb.textContent = "#" + fmt(rt.nextDrawBlock);
+          if (rbb){
+            if (!rt.blockNum) rbb.textContent = "—";
+            else {
+              var rleft = rt.nextDrawBlock - rt.blockNum;
+              if (rleft <= 0) rbb.textContent = "Due now — anyone can run it";
+              else {
+                var rmins = Math.round(rleft * 12 / 60);
+                rbb.textContent = fmt(rleft) + " blocks (≈ " + (rmins >= 90 ? (rmins / 60).toFixed(1) + " h" : rmins + " min") + ")";
+              }
+            }
+          }
+          var rsrc = $("treasurySource");
+          if (rsrc) rsrc.textContent = "Live from the contract — treasury() on Sepolia" + (rt.blockNum ? " · Sepolia block #" + fmt(rt.blockNum) : "") + " · refreshes on page load and on every poll.";
+          $("drawBtn").disabled = true;
+          return;
+        }
+      } catch (e) {}
+      var psrc = $("treasurySource");
+      if (psrc) psrc.textContent = "Practice ledger — switch to Real Mode for the live on-chain treasury.";
       $("treasuryBal").textContent = fmt(day.treasury);
       $("creatorFees").textContent = fmt(day.creatorFees);
       $("entrantsToday").textContent = day.entrantList.length;
@@ -2296,6 +2397,57 @@ contract SqueekTiles {
     function signerToken(){ var p = signerProvider(); return new ethers.Contract(REAL_SQK, ERC20_ABI, p.getSigner()); }
     function fmtSQK(bn){ return bn == null ? "—" : Number(ethers.utils.formatUnits(bn, 18)).toLocaleString("en-US", { maximumFractionDigits: 4 }); }
 
+    /* ---------- live treasury (treasury() on the contract) ----------
+       The Treasury card is shared with Practice Mode, whose renderDay()
+       would otherwise keep showing its own ledger (0 SQK). Cache the
+       live value on window.__realTreasury: renderDay() reads it back
+       while Real Mode is on, and renderRealTreasury() writes the card
+       directly. Fetched on page load, on entering Real Mode, and on
+       every Real Mode poll — so a page refresh always shows fresh data. */
+    function renderRealTreasury(treasuryNum, lastDraw, blockNum){
+      window.__realTreasury = { fetched: true, value: treasuryNum, lastDraw: lastDraw, nextDrawBlock: lastDraw + 1800, blockNum: blockNum || 0 };
+      if (appMode !== "real") return;
+      var tb = $("treasuryBal");
+      if (tb) tb.textContent = treasuryNum.toLocaleString("en-US", { maximumFractionDigits: 4 });
+      var nb = $("nextDrawBlock");
+      if (nb) nb.textContent = "#" + (lastDraw + 1800).toLocaleString("en-US");
+      var bb = $("blocksToDraw");
+      if (bb){
+        if (!blockNum) bb.textContent = "—";
+        else {
+          var left = (lastDraw + 1800) - blockNum;
+          if (left <= 0) bb.textContent = "Due now — anyone can run it";
+          else {
+            var mins = Math.round(left * 12 / 60);
+            bb.textContent = left.toLocaleString("en-US") + " blocks (≈ " + (mins >= 90 ? (mins / 60).toFixed(1) + " h" : mins + " min") + ")";
+          }
+        }
+      }
+      var src = $("treasurySource");
+      if (src) src.textContent = "Live from the contract — treasury() on Sepolia" + (blockNum ? " · Sepolia block #" + blockNum.toLocaleString("en-US") : "") + " · refreshes on page load and on every poll.";
+      var db = $("drawBtn");
+      if (db) db.disabled = true;
+    }
+    var realTreasuryFetching = false;
+    async function refreshRealTreasuryOnly(){
+      if (realTreasuryFetching || typeof window.ethers === "undefined") return;
+      realTreasuryFetching = true;
+      try {
+        // Read straight from the public Sepolia RPC — not MetaMask — so
+        // the value is correct on Sepolia even before a wallet connects
+        // or while MetaMask sits on another network.
+        var rpcProvider = new ethers.providers.JsonRpcProvider(REAL_RPC);
+        var rg = new ethers.Contract(REAL_CONTRACT, GAME_ABI, rpcProvider);
+        var treasuryBn = await rg.treasury();
+        var lastDraw = Number(await rg.lastDrawBlock());
+        var blockNum = 0;
+        try { blockNum = await rpcProvider.getBlockNumber(); } catch (e) {}
+        renderRealTreasury(Number(ethers.utils.formatUnits(treasuryBn, 18)), lastDraw, blockNum);
+      } catch (e) {
+        // Keep whatever the card already shows; the next poll retries.
+      } finally { realTreasuryFetching = false; }
+    }
+
     /* ---------- mode switching (Practice stays exactly as it was) ---------- */
     function setMode(mode){
       appMode = mode;
@@ -2323,9 +2475,12 @@ contract SqueekTiles {
         renderRealLobbyInfo(realState.lastState);
         renderRealWaiting(realState.lastState);
         if (!window.ethereum) $("realWalletMsg").textContent = "MetaMask was not found in this browser. Install the MetaMask extension, then reload this page and connect.";
+        if (window.__realTreasury && window.__realTreasury.fetched) renderRealTreasury(window.__realTreasury.value, window.__realTreasury.lastDraw, window.__realTreasury.blockNum);
+        refreshRealTreasuryOnly();
         refreshRealState(false);
         if (realState.account) refreshRealBalance();
       } else {
+        try { renderDay(); } catch (e) {}
         $("spectatorBar").classList.add("hidden");
         // The live lobby-waiting banners are Real Mode only — never leak them into Practice.
         if ($("realWaitingBox")) $("realWaitingBox").classList.add("hidden");
@@ -2772,6 +2927,7 @@ contract SqueekTiles {
         var blockNum = 0;
         try { blockNum = await readProvider().getBlockNumber(); } catch (e) {}
         var treasuryNum = Number(ethers.utils.formatUnits(treasuryBn, 18));
+        renderRealTreasury(treasuryNum, lastDraw, blockNum);
         var gid = currentRealGameId();
         if (!gid){
           $("realGameStatus").textContent = "Contract is live on Sepolia: " + (nextId - 1) + " game(s) created so far. Treasury holds " + treasuryNum.toLocaleString("en-US") + " SQK · last draw block #" + lastDraw.toLocaleString("en-US") + " · next draw from block #" + (lastDraw + 1800).toLocaleString("en-US") + (blockNum ? " · Sepolia block #" + blockNum.toLocaleString("en-US") : "") + ". Pick a lobby size in the play bar above the board and press Join there — the site will auto-find an open lobby or create one.";
@@ -2924,7 +3080,18 @@ contract SqueekTiles {
       if (st.phase === 0) setWheel("WAITING FOR PLAYERS: " + st.players.length + " / " + st.size, "Real game #" + st.gameId + " is filling on-chain — " + (st.size - st.players.length) + " more to start. This page polls the contract live, and the game starts automatically the moment the last player joins — no button to press.", false);
       else if (st.phase === 1){
         var readyIn = Math.max(0, st.spinReadyAt - Math.floor(Date.now() / 1000));
-        setWheel("ON-CHAIN GAME RUNNING", "The wheel's 10 seconds are counted by the contract (spin ready " + (readyIn > 0 ? "in ~" + readyIn + "s" : "now") + "). " + (realState.autoSpin ? "Auto-spin is ON: this page sends the spin by itself when the timer ends — MetaMask just asks you to confirm each round." : "Auto-spin is OFF: press Spin & eliminate in the Real Mode panel once its countdown ends."), false);
+        // The hamster runs for exactly the contract's 10-second spin:
+        // while spinReadyAt is still in the future the wheel is turning,
+        // so the running animation is ON; the moment the countdown
+        // reaches zero the wheel — and the hamster — stop, and the spin
+        // transaction can be sent. realSpinTick() re-checks this every
+        // second, so the stop lands on time even between contract polls.
+        var isSpinning = readyIn > 0;
+        setWheel(isSpinning ? "THE HAMSTER IS RUNNING…" : "ON-CHAIN GAME RUNNING",
+          isSpinning
+            ? "Round " + (realState.round || 1) + " — the hamster is running on the wheel. The wheel's 10 seconds are counted by the contract (spin ready in ~" + readyIn + "s), then the wheel stops and one tile is eliminated. " + (realState.autoSpin ? "Auto-spin is ON: this page sends the spin by itself when the timer ends — MetaMask just asks you to confirm each round." : "Auto-spin is OFF: press Spin & eliminate in the Real Mode panel once its countdown ends.")
+            : "The 10 seconds are up — the wheel has stopped and the hamster is resting. The spin is ready now: " + (realState.autoSpin ? "Auto-spin is sending it — confirm in MetaMask." : "press Spin & eliminate in the Real Mode panel."),
+          isSpinning);
       }
       else if (st.phase === 2) setWheel("RAISE OPEN — DECIDING", "A +20 SQK raise is open on-chain. The decision window ends at the contract deadline or once everyone has decided and someone opens the transaction window.", false);
       else if (st.phase === 3) setWheel("RAISE — TRANSACTION WINDOW", "Acceptors now confirm their +20 SQK on-chain. Anyone can settle the raise once every transaction is recorded or the 60 seconds are up.", false);
@@ -3091,6 +3258,21 @@ contract SqueekTiles {
       var btn = $("realSpinBtn"), status = $("realSpinStatus");
       var st = realState.lastState;
       var gid = currentRealGameId();
+      /* Keep the wheel + running-hamster animation in step with the
+         on-chain 10-second timer, checked every second (contract polls
+         only land every ~10s, which would stop the hamster late):
+         the hamster runs while this round's spinReadyAt is still in
+         the future, and stops the second the countdown hits zero, the
+         spin transaction is in flight, or the game leaves the Playing
+         phase (raise open, finished, still filling). */
+      if (st && gid && st.gameId === gid){
+        var wheelShouldSpin = st.phase === 1 && !realState.spinInFlight && spinSecondsLeft(st) > 0;
+        var wrap = $("wheelWrap");
+        if (wrap.classList.contains("spinning") !== wheelShouldSpin){
+          wrap.classList.toggle("spinning", wheelShouldSpin);
+          if (st.phase === 1) $("wheelStatus").textContent = wheelShouldSpin ? "THE HAMSTER IS RUNNING…" : "ON-CHAIN GAME RUNNING";
+        }
+      }
       if (!gid || !st || st.gameId !== gid){
         btn.disabled = false;
         btn.textContent = "Spin & eliminate";
@@ -3207,6 +3389,11 @@ contract SqueekTiles {
       if (!realState.lastState || realState.lastState.phase !== 0) return;
       refreshRealState(false);
     }, 4000);
+    /* Fresh treasury on every page load / refresh: read treasury() from
+       the contract once at startup (public Sepolia RPC — no wallet
+       needed) and cache it, so entering Real Mode never shows a stale 0
+       and every reload re-reads the live value. */
+    refreshRealTreasuryOnly();
     </script>
   </body>
 </html>
