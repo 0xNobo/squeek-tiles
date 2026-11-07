@@ -683,7 +683,7 @@
               </div>
             </div>
             <div class="spectator-bar hidden" id="spectatorBar">
-              <div class="sb-text"><b>👀 YOU ARE OUT — SPECTATING</b><br/>You were eliminated, but this game is still running. Keep watching it play out below, or leave it and start a fresh game — your call.</div>
+              <div class="sb-text" id="spectatorText"><b>👀 YOU ARE OUT — SPECTATING</b><br/>You were eliminated, but this game is still running. Keep watching it play out below, or leave it and start a fresh game — your call.</div>
               <button class="btn gold sm" id="spectatorNewBtn" type="button">Leave &amp; start a new game</button>
             </div>
             <div class="lobby-waiting board-waiting hidden" id="realBoardWaiting" role="status" aria-live="polite">
@@ -717,7 +717,7 @@
 
           <div class="side-panel hidden" id="realActionsPanel">
               <div style="font-family:'Press Start 2P',monospace; font-size:11px; line-height:1.7;">IN-GAME ACTIONS (ON-CHAIN)</div>
-              <p class="small" style="margin:6px 0 0;">Same rules as Practice Mode, driven by the contract: 10-second spin, raises of +20 SQK with a 30-second decision window and a separate 60-second transaction window. <b>The spin is automatic:</b> with Auto-spin on, this page sends the spin by itself the moment the contract's 10 seconds are up — MetaMask just asks you to confirm each round. The Spin button stays locked with a countdown until the spin is actually ready, so an early press can never send a transaction that fails. Anyone can call Open Tx Window / Settle once the contract's timers allow it.</p>
+              <p class="small" style="margin:6px 0 0;">Same rules as Practice Mode, driven by the contract: 10-second spin, raises of +20 SQK with a 30-second decision window and a separate 60-second transaction window. <b>The spin is automatic:</b> with Auto-spin on, this page sends the spin by itself the moment the contract's 10 seconds are up — MetaMask just asks you to confirm each round. The Spin button stays locked with a countdown until the spin is actually ready, so an early press can never send a transaction that fails. Anyone can call Open Tx Window / Settle once the contract's timers allow it — and <b>this page now calls them automatically</b>: the moment the 30-second decision window ends (deadline passed, or every alive player has decided) it sends Open Tx Window by itself, and the moment the 60-second transaction window ends (deadline passed, or every accepted transaction is settled) it sends Settle Raise by itself, so a raise can no longer sit stuck waiting for a manual click. The manual buttons below stay as a fallback.</p>
               <div class="autospin-row">
                 <label class="switch" for="realAutoSpinToggle">
                   <input type="checkbox" id="realAutoSpinToggle" checked />
@@ -1895,6 +1895,11 @@ contract SqueekTiles {
     $("proposeBtn").addEventListener("click", function(){ game.proposeClicked = true; });
     $("spectatorNewBtn").addEventListener("click", function(){
       if (typeof appMode !== "undefined" && appMode === "real"){
+        // Real Mode: this button only leaves the VIEW of the game (see
+        // leaveRealGameView in the Real Mode script) — the contract has
+        // no leave, entry is final, and the player's entry stays in the
+        // on-chain game exactly as it was.
+        if (typeof leaveRealGameView === "function"){ leaveRealGameView(); return; }
         $("spectatorBar").classList.add("hidden");
         $("playBar").scrollIntoView({ behavior: "smooth", block: "start" });
         return;
@@ -2372,7 +2377,8 @@ contract SqueekTiles {
       gameId: null, lastState: null, round: 1, winnerShownFor: null,
       modalByReal: false, busy: false,
       refreshing: false, startedNotifiedFor: null, lastWaitingUpdated: null, fillingSeenFor: null,
-      autoSpin: true, spinInFlight: false, autoSpinKey: null
+      autoSpin: true, spinInFlight: false, autoSpinKey: null,
+      autoRaiseKey: null, autoRaiseTryAt: 0, raiseInFlight: false
     };
     function realErr(e){
       var m = (e && (e.data && e.data.message || e.reason || e.message)) || String(e || "unknown error");
@@ -2481,6 +2487,11 @@ contract SqueekTiles {
         if (realState.account) refreshRealBalance();
       } else {
         try { renderDay(); } catch (e) {}
+        // Restore the Practice wording of the spectator bar (Real Mode
+        // swaps in its own "leave the view — entry stays on-chain" text).
+        var sbT = $("spectatorText"), sbB = $("spectatorNewBtn");
+        if (sbT) sbT.innerHTML = "<b>👀 YOU ARE OUT — SPECTATING</b><br/>You were eliminated, but this game is still running. Keep watching it play out below, or leave it and start a fresh game — your call.";
+        if (sbB) sbB.textContent = "Leave & start a new game";
         $("spectatorBar").classList.add("hidden");
         // The live lobby-waiting banners are Real Mode only — never leak them into Practice.
         if ($("realWaitingBox")) $("realWaitingBox").classList.add("hidden");
@@ -2808,6 +2819,36 @@ contract SqueekTiles {
         $("realBoardWaitingUpdated").textContent = "Live — last checked " + nowStr + ".";
       }
     }
+    /* ---------- leave the VIEW of a real game (spectator bar button) ----------
+       The contract has no leave function and entry is final: nothing
+       here sends a transaction or removes the player from the on-chain
+       game — their entry stays in it exactly as it was, and the game
+       keeps running on-chain without this page. All this does is stop
+       this page from following that game (clear the tracked game id,
+       close the raise popup, reset the board to an empty state) so the
+       player can spectate no longer and join a fresh game instead. */
+    function leaveRealGameView(){
+      var gid = realState.gameId;
+      realState.gameId = null;
+      realState.lastState = null;
+      realState.modalByReal = false;
+      realState.autoRaiseKey = null;
+      realState.startedNotifiedFor = null;
+      realState.fillingSeenFor = null;
+      try { closeRaiseModal(); } catch (e) {}
+      $("spectatorBar").classList.add("hidden");
+      if ($("realWaitingBox")) $("realWaitingBox").classList.add("hidden");
+      if ($("realBoardWaiting")) $("realBoardWaiting").classList.add("hidden");
+      $("raisePanel").classList.add("hidden");
+      $("boardArea").innerHTML = "<div class='empty-board'><div class='px'>YOU LEFT THE VIEW" + (gid ? " OF GAME #" + gid : "") + "</div><p>That game continues on-chain without this page watching it. There is no leave in the contract — <b>your entry stays in " + (gid ? "game #" + gid : "that game") + "</b> exactly as it was. Pick a lobby above and press Join to start a new game.</p></div>";
+      $("roundLabel").textContent = "NO GAME IN VIEW";
+      $("aliveLabel").textContent = "";
+      setWheel("THE WHEEL IS RESTING", "You left the view of the last game — it carries on on-chain and your entry stays in it. Join a lobby above to start a new game.", false);
+      $("realGameStatus").textContent = "You left the view" + (gid ? " of game #" + gid : "") + ". It continues on-chain and your entry stays in it — leaving only changed what this page follows. Press Join above to start a new game.";
+      renderRealLobbyInfo(null);
+      logLine("Real Mode: you left the <b>view</b>" + (gid ? " of game <b>#" + gid + "</b>" : "") + " — the game itself continues on-chain and your entry stays in it (entry is final; the contract has no leave).", "purp");
+      $("playBar").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     // Keep the Real Mode lobby label in sync when the user clicks a
     // lobby size card in the play bar (the cards are shared with Practice).
     Array.prototype.forEach.call(document.querySelectorAll("#lobbies .lobby"), function(btn){
@@ -3076,6 +3117,15 @@ contract SqueekTiles {
       // spectator rules, same as practice: out but game still running
       var me = st.players.filter(function(p){ return p.you; })[0];
       var spectating = !!(me && !me.alive && st.phase !== 4 && st.phase !== 0);
+      if (spectating){
+        // Real Mode wording, said plainly: the contract has NO leave and
+        // entry is final, so the button below can only leave this page's
+        // VIEW of the game — the player's entry stays in the on-chain
+        // game exactly as it was. It must never read as exiting the game.
+        var sbText = $("spectatorText"), sbBtn = $("spectatorNewBtn");
+        if (sbText) sbText.innerHTML = "<b>👀 YOU ARE OUT — SPECTATING</b><br/>You were eliminated, but game #" + st.gameId + " is still running on-chain. Keep watching it play out below, or leave this view and start a fresh game. <b>Leaving does not take you out of the on-chain game</b> — there is no leave in the contract and entry is final, so your entry stays in this game; the button only stops this page from following it.";
+        if (sbBtn) sbBtn.textContent = "Leave view & start a new game (your entry stays in this game)";
+      }
       $("spectatorBar").classList.toggle("hidden", !spectating);
       if (st.phase === 0) setWheel("WAITING FOR PLAYERS: " + st.players.length + " / " + st.size, "Real game #" + st.gameId + " is filling on-chain — " + (st.size - st.players.length) + " more to start. This page polls the contract live, and the game starts automatically the moment the last player joins — no button to press.", false);
       else if (st.phase === 1){
@@ -3125,8 +3175,13 @@ contract SqueekTiles {
         $("modalAcceptBtn").disabled = !userAlive;
         $("modalDeclineBtn").disabled = !userAlive;
         showRaiseStep("decision");
+        // Popup rule (decision step): ONLY a player still alive in this
+        // game gets the popup. An eliminated / spectating player never
+        // does — in Real Mode any open raise popup belongs to this layer,
+        // so for anyone not alive it is closed unconditionally, not left
+        // up from an earlier poll.
         if (userAlive){ openRaiseModal(); realState.modalByReal = true; }
-        else if (realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
+        else if (appMode === "real" || realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
       } else if (st.phase === 3){
         var tv = "";
         st.players.forEach(function(p){
@@ -3147,11 +3202,19 @@ contract SqueekTiles {
         $("txHint").textContent = hint;
         $("modalTxHint").textContent = hint;
         showRaiseStep("tx");
-        if (userOwes){ openRaiseModal(); realState.modalByReal = true; }
-        else if (realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
+        // Popup rule (transaction step): ONLY a player who is alive AND
+        // accepted the raise gets the popup — it stays up for them for
+        // the whole window (even after their own tx confirms, so they
+        // can watch the rest settle), with the Confirm button live only
+        // while they still owe the transaction. Everyone else — players
+        // who declined, were eliminated, or are only spectating — never
+        // gets the popup; it is closed for them unconditionally.
+        var userAccepted = !!(me && me.alive && me.accepted);
+        if (userAccepted){ openRaiseModal(); realState.modalByReal = true; }
+        else if (appMode === "real" || realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
       } else {
         $("raisePanel").classList.add("hidden");
-        if (realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
+        if (appMode === "real" || realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
       }
     }
     function maybeShowRealWinner(st){
@@ -3251,6 +3314,57 @@ contract SqueekTiles {
       logLine("Real Mode: spin is ready — Auto-spin is sending round " + (realState.round || 1) + " of game <b>#" + st.gameId + "</b>. Confirm it in MetaMask.", "purp");
       doRealSpin(true);
     }
+    /* ---------- raise windows: automatic advance (never stuck) ----------
+       Same idea as auto-spin, for the two raise windows. The contract
+       lets ANYONE call openTxWindow once every alive player has a
+       recorded decision (accepted or declined) or the 30s deadline has
+       passed, and settleRaise once every accepted transaction has a
+       recorded outcome (confirmed or failed) or the 60s deadline has
+       passed — so a connected page never has to wait for a manual
+       click: the 1-second ticker below calls maybeAutoRaise(), which
+       fires the right call from the connected wallet by itself.
+       Attempts are keyed to the window (game + phase + deadline) and
+       throttled to one MetaMask prompt per window per 20 seconds, so a
+       rejected prompt is retried shortly after instead of spamming
+       every second — and the manual buttons always remain as fallback. */
+    function raiseAllDecided(st){
+      var alive = st.players.filter(function(p){ return p.alive; });
+      return alive.length > 0 && alive.every(function(p){ return p.accepted || p.declined; });
+    }
+    function raiseAllTxSettled(st){
+      var acc = st.players.filter(function(p){ return p.alive && p.accepted; });
+      return acc.length > 0 && acc.every(function(p){ return p.matched || p.txFailed; });
+    }
+    function maybeAutoRaise(){
+      if (appMode !== "real") return;
+      if (!realState.account || realState.busy || realState.spinInFlight || realState.raiseInFlight) return;
+      var st = realState.lastState;
+      if (!st || st.gameId !== currentRealGameId()) return;
+      var now = Math.floor(Date.now() / 1000);
+      var kind = null, why = "";
+      if (st.phase === 2){
+        if (raiseAllDecided(st)){ kind = "open"; why = "every alive player has decided"; }
+        else if (now > st.raiseDeadline){ kind = "open"; why = "the 30-second decision window has ended"; }
+      } else if (st.phase === 3){
+        if (raiseAllTxSettled(st)){ kind = "settle"; why = "every accepted transaction is settled (confirmed or failed)"; }
+        else if (now > st.txDeadline){ kind = "settle"; why = "the 60-second transaction window has ended"; }
+      }
+      if (!kind) return;
+      var key = st.gameId + ":" + st.phase + ":" + (kind === "open" ? st.raiseDeadline : st.txDeadline);
+      var nowMs = Date.now();
+      if (realState.autoRaiseKey === key && nowMs - (realState.autoRaiseTryAt || 0) < 20000) return;
+      realState.autoRaiseKey = key;
+      realState.autoRaiseTryAt = nowMs;
+      realState.raiseInFlight = true;
+      logLine("Real Mode: raise auto-advance — " + why + ", so this page is calling <b>" + (kind === "open" ? "openTxWindow" : "settleRaise") + "</b> for game <b>#" + st.gameId + "</b> by itself. Confirm it in MetaMask.", "purp");
+      var label = kind === "open"
+        ? "Open transaction window (auto — decision window ended)"
+        : "Settle raise (auto — transaction window ended)";
+      var p = kind === "open"
+        ? realAction(label, function(g, id){ return g.openTxWindow(id); })
+        : realAction(label, function(g, id){ return g.settleRaise(id); });
+      Promise.resolve(p).catch(function(){}).then(function(){ realState.raiseInFlight = false; });
+    }
     /* 1-second ticker: live countdown on the Spin button + status line,
        and the auto-spin trigger. Runs only while Real Mode is on screen. */
     function realSpinTick(){
@@ -3302,16 +3416,27 @@ contract SqueekTiles {
               : "✅ Round " + (realState.round || 1) + " — spin is ready. Press Spin & eliminate.";
           }
         }
-      } else if (st.phase === 2 || st.phase === 3){
+      } else if (st.phase === 2){
         btn.disabled = true;
         btn.textContent = "Spin & eliminate";
-        status.textContent = "A raise is open on-chain — the wheel is paused until the raise is settled.";
+        var dLeft = Math.max(0, st.raiseDeadline - Math.floor(Date.now() / 1000));
+        status.textContent = raiseAllDecided(st)
+          ? "⚡ Raise: every alive player has decided — this page is auto-calling Open Tx Window now; confirm in MetaMask. The wheel resumes once the raise settles."
+          : "⚡ Raise decision window: " + dLeft + "s left (it ends early once everyone has decided). When it ends, this page auto-calls Open Tx Window from your wallet — no manual click needed, the game cannot get stuck here.";
+      } else if (st.phase === 3){
+        btn.disabled = true;
+        btn.textContent = "Spin & eliminate";
+        var tLeft = Math.max(0, st.txDeadline - Math.floor(Date.now() / 1000));
+        status.textContent = raiseAllTxSettled(st)
+          ? "⚡ Raise: every accepted transaction is settled — this page is auto-calling Settle Raise now; confirm in MetaMask. The wheel resumes right after."
+          : "⚡ Raise transaction window: " + tLeft + "s left (it ends early once every accepted transaction is confirmed or failed). When it ends, this page auto-calls Settle Raise from your wallet — no manual click needed, the game cannot get stuck here.";
       } else {
         btn.disabled = true;
         btn.textContent = "Spin & eliminate";
         status.textContent = "Game #" + st.gameId + " is finished — the wheel has stopped.";
       }
       maybeAutoSpin();
+      maybeAutoRaise();
     }
     setInterval(realSpinTick, 1000);
     $("realSpinBtn").addEventListener("click", function(){ doRealSpin(false); });
@@ -3376,17 +3501,22 @@ contract SqueekTiles {
       refreshRealState(false);
       if (realState.account) refreshRealBalance();
     }, 10000);
-    /* Fast live poll while a lobby is still filling: re-read the contract
-       every 4 seconds so the "Waiting for players: X / Y — Z more to
-       start" count, the joined-player list and the slot display update
-       as each new player joins — and so the flip to "started
-       automatically" shows within seconds of the lobby filling, with no
-       action from the user. refreshRealState() itself guards against
-       overlapping polls. */
+    /* Fast live poll while a lobby is still filling OR a raise window
+       is open: re-read the contract every 4 seconds so the "Waiting for
+       players: X / Y — Z more to start" count, the joined-player list
+       and the slot display update as each new player joins, the flip to
+       "started automatically" shows within seconds of the lobby
+       filling — and, during a raise, the moment every player has
+       decided / every accepted transaction has settled is picked up
+       within seconds so maybeAutoRaise() can advance the window early
+       instead of waiting out the full 30s / 60s. refreshRealState()
+       itself guards against overlapping polls. */
     setInterval(function(){
       if (appMode !== "real") return;
       if (!realState.gameId) return;
-      if (!realState.lastState || realState.lastState.phase !== 0) return;
+      if (!realState.lastState) return;
+      var ph = realState.lastState.phase;
+      if (ph !== 0 && ph !== 2 && ph !== 3) return;
       refreshRealState(false);
     }, 4000);
     /* Fresh treasury on every page load / refresh: read treasury() from
