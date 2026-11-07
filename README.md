@@ -127,3 +127,5 @@ then compile the standard JSON above with `solcx.compile_standard(..., solc_vers
 Sepolia testnet only. SQK here is a test token with no real value. The
 contract is **unaudited** — do not use it with real funds. Squeekchain has
 no separate mainnet chain yet; its contracts and SQK live on Sepolia.
+
+squeekchain-project: fdc8d714-43d8-4734-b888-227642d8263b
