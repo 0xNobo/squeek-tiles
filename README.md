@@ -61,7 +61,7 @@ game can be reconstructed from the chain alone.
 
 ## Live game
 
-Play it here: https://muse.ai/s/squeek-tiles-lxk6ecxf76gxwz/y0Q3xwU_NUJ832XeC-sUYn8fCGCy_yp4yHqpfUfJE2Y
+Play it here: https://squeektiles.top
 
 Open the link in desktop Chrome with the MetaMask extension installed, switch
 MetaMask to Sepolia (chain ID 11155111), and use Real Mode. Practice Mode
