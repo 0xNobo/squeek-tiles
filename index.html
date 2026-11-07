@@ -1,0 +1,3045 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Squeek Tiles</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+      :root{
+        --bg:#e9eef7; --bg2:#d7e2f2; --panel:#ffffff; --panel2:#f2f5fb;
+        --ink:#1b1e3a; --ink-dim:#565b7d; --line:#c3cde4;
+        --gold:#e79b13; --gold-soft:#fdf0d3; --teal:#0d9488; --teal-soft:#d5f3ee;
+        --purple:#7c5cd6; --purple-soft:#e9e2fb; --red:#d64545; --red-soft:#fbe3e3;
+        --green:#1d9e5f; --green-soft:#dcf5e7;
+        --tile:#fdfdff; --tile-dead:#e3e6ef; --shadow:rgba(27,30,58,.16);
+        --wheel-bg:#ffffff;
+      }
+      @media (prefers-color-scheme: dark){
+        :root{
+          --bg:#0c0a24; --bg2:#141136; --panel:#1a1740; --panel2:#221e52;
+          --ink:#f0eefc; --ink-dim:#a5a1cf; --line:#37336b;
+          --gold:#f5b942; --gold-soft:#3a2f10; --teal:#2dd4bf; --teal-soft:#0f3532;
+          --purple:#a78bfa; --purple-soft:#2c2358; --red:#f87171; --red-soft:#451f26;
+          --green:#4ade80; --green-soft:#123527;
+          --tile:#262258; --tile-dead:#17143a; --shadow:rgba(0,0,0,.45);
+          --wheel-bg:#221e52;
+        }
+      }
+      *{ box-sizing:border-box; }
+      html{ -webkit-text-size-adjust:100%; }
+      body{
+        margin:0; color:var(--ink);
+        font-family: ui-rounded, "Segoe UI", system-ui, -apple-system, sans-serif;
+        background:
+          radial-gradient(2px 2px at 12% 8%, var(--ink-dim) 50%, transparent 51%),
+          radial-gradient(2px 2px at 78% 5%, var(--ink-dim) 50%, transparent 51%),
+          radial-gradient(2px 2px at 55% 14%, var(--ink-dim) 50%, transparent 51%),
+          radial-gradient(2px 2px at 90% 18%, var(--ink-dim) 50%, transparent 51%),
+          linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+        background-attachment: fixed;
+        min-height:100vh;
+      }
+      .px{ font-family:"Press Start 2P", monospace; }
+      .mono{ font-family:"IBM Plex Mono", ui-monospace, monospace; }
+      .wrap{ max-width:1240px; margin:0 auto; padding:18px 16px 64px; }
+
+      /* ---------- header / wallet ---------- */
+      header.top{
+        display:flex; flex-wrap:wrap; gap:14px; align-items:stretch; justify-content:space-between;
+        margin-bottom:14px;
+      }
+      .brand h1{
+        font-family:"Press Start 2P", monospace; font-size:clamp(20px,4.5vw,32px);
+        margin:2px 0 8px; letter-spacing:1px; color:var(--ink);
+      }
+      .brand h1 .t-gold{ color:var(--gold); }
+      .brand p{ margin:0; color:var(--ink-dim); font-size:15px; max-width:52ch; line-height:1.45; }
+      .wallet{
+        background:var(--panel); border:3px solid var(--ink); border-radius:6px;
+        box-shadow:6px 6px 0 var(--shadow); padding:12px 14px; min-width:270px;
+      }
+      .wallet .w-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+      .wallet .w-label{ font-size:11px; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-dim); }
+      .wallet .w-addr{ font-size:14px; font-weight:600; }
+      .wallet .w-bal{ font-family:"Press Start 2P", monospace; font-size:15px; color:var(--gold); margin-top:8px; }
+      .wallet .w-net{ font-size:12px; color:var(--ink-dim); margin-top:4px; }
+      .dot{ width:9px; height:9px; border-radius:2px; background:var(--red); display:inline-block; }
+      .dot.on{ background:var(--green); }
+
+      /* ---------- chain bar ---------- */
+      .chainbar{
+        display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center;
+        background:var(--panel2); border:2px solid var(--line); border-radius:6px;
+        padding:9px 14px; margin-bottom:16px; font-size:13.5px;
+      }
+      .chainbar b{ font-family:"IBM Plex Mono", monospace; }
+      .chainbar .src{ color:var(--ink-dim); }
+      .chainbar .formula{ color:var(--ink-dim); }
+      .chainbar .formula b{ color:var(--purple); }
+
+      /* ---------- layout ---------- */
+      .layout{ display:grid; grid-template-columns:300px 1fr 320px; gap:16px; align-items:start; }
+      @media (max-width:1020px){ .layout{ grid-template-columns:1fr 1fr; } .board-col{ grid-column:1 / -1; order:-1; } }
+      @media (max-width:640px){ .layout{ grid-template-columns:1fr; } }
+      .card{
+        background:var(--panel); border:3px solid var(--ink); border-radius:6px;
+        box-shadow:6px 6px 0 var(--shadow); padding:16px; margin-bottom:16px;
+      }
+      .card h2{
+        font-family:"Press Start 2P", monospace; font-size:13px; margin:0 0 12px;
+        letter-spacing:.5px; line-height:1.6;
+      }
+      .card h2 .accent{ color:var(--gold); }
+      .small{ font-size:13px; color:var(--ink-dim); line-height:1.5; }
+      .stat-row{ display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:2px dashed var(--line); font-size:14px; }
+      .stat-row:last-child{ border-bottom:none; }
+      .stat-row b{ font-family:"IBM Plex Mono", monospace; }
+
+      /* ---------- buttons ---------- */
+      .btn{
+        appearance:none; border:3px solid var(--ink); border-radius:6px; cursor:pointer;
+        background:var(--panel2); color:var(--ink); font:inherit; font-weight:700;
+        padding:10px 14px; box-shadow:4px 4px 0 var(--shadow); transition:transform .08s, box-shadow .08s;
+        font-size:14.5px; line-height:1.2;
+      }
+      .btn:hover:not(:disabled){ transform:translate(-1px,-1px); box-shadow:5px 5px 0 var(--shadow); }
+      .btn:active:not(:disabled){ transform:translate(2px,2px); box-shadow:2px 2px 0 var(--shadow); }
+      .btn:disabled{ opacity:.45; cursor:not-allowed; }
+      .btn.gold{ background:var(--gold); color:#241a02; }
+      .btn.teal{ background:var(--teal); color:#fff; }
+      @media (prefers-color-scheme: dark){ .btn.teal{ color:#04231f; } }
+      .btn.purple{ background:var(--purple); color:#fff; }
+      .btn.red{ background:var(--red); color:#fff; }
+      .btn.block{ display:block; width:100%; }
+      .btn.sm{ padding:7px 10px; font-size:13px; border-width:2px; box-shadow:3px 3px 0 var(--shadow); }
+
+      /* ---------- lobby picker ---------- */
+      .lobbies{ display:grid; gap:10px; }
+      .lobby{
+        border:3px solid var(--line); border-radius:6px; padding:10px 12px; cursor:pointer;
+        background:var(--panel2); text-align:left; font:inherit; color:var(--ink); width:100%;
+        display:flex; align-items:center; gap:12px;
+      }
+      .lobby:hover{ border-color:var(--ink-dim); }
+      .lobby.sel{ border-color:var(--ink); background:var(--gold-soft); box-shadow:4px 4px 0 var(--shadow); }
+      .lobby .mini-grid{ display:grid; gap:2px; flex:none; }
+      .lobby .mini-grid i{ width:9px; height:9px; background:var(--gold); border:1.5px solid var(--ink); border-radius:1px; display:block; }
+      .lobby .l-name{ font-family:"Press Start 2P", monospace; font-size:12px; }
+      .lobby .l-sub{ font-size:12.5px; color:var(--ink-dim); margin-top:4px; }
+
+      .mode-note{
+        border:2px dashed var(--purple); background:var(--purple-soft); border-radius:6px;
+        padding:10px 12px; font-size:13px; line-height:1.5; margin-bottom:16px;
+      }
+      .mode-note.real{ border-color:var(--gold); background:var(--gold-soft); }
+
+      /* ---------- play bar: every start control, directly above the board ---------- */
+      .playbar{ border-color:var(--gold); }
+      .playbar .mode-toggle{ margin-bottom:14px; }
+      /* Desktop arrangement via grid areas: lobby on the left, stats over
+         the actions on the right. The DOM order (lobby, stats, actions)
+         stays the same at every width — only the area order changes. */
+      .bar-grid{
+        display:grid; grid-template-columns:1fr 340px; gap:6px 18px; align-items:start;
+        grid-template-areas:"lobby stats" "lobby actions";
+      }
+      .bar-col-lobby{ grid-area:lobby; }
+      .bar-stats{ grid-area:stats; }
+      .bar-col-actions{ grid-area:actions; }
+      @media (max-width:900px){
+        .bar-grid{ grid-template-columns:1fr; grid-template-areas:"lobby" "stats" "actions"; }
+      }
+      .bar-label{ font-family:"Press Start 2P", monospace; font-size:11px; line-height:1.6; margin-bottom:8px; }
+      .bar-label .accent{ color:var(--gold); }
+      .playbar .lobbies{ grid-template-columns:repeat(3,1fr); gap:8px; }
+      .playbar .lobby{ flex-direction:column; align-items:flex-start; gap:8px; padding:9px 10px; }
+      .bar-stats{ display:flex; flex-wrap:wrap; gap:6px 16px; font-size:13px; margin-bottom:10px; }
+      .bar-stats b{ font-family:"IBM Plex Mono", monospace; }
+      .bar-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+      .bar-real-status{ border:2px solid var(--line); border-radius:6px; padding:6px 12px; background:var(--panel2); margin-top:10px; }
+      @media (max-width:560px){
+        .playbar .mode-btn{ flex:1 1 130px; padding:9px 10px; font-size:13px; }
+        .playbar .lobbies{ gap:6px; }
+        .playbar .lobby{ padding:8px 7px; gap:6px; }
+        .playbar .lobby .l-name{ font-size:10.5px; }
+        .playbar .lobby .l-sub{ font-size:11px; }
+      }
+
+      /* ---------- play bar on phones: actions first, compact lobby row,
+         and the whole bar sticks to the top so Join never scrolls away.
+         Desktop and tablet layouts above are untouched. ---------- */
+      @media (max-width:700px){
+        .playbar{
+          position:sticky; top:8px; z-index:60;
+          padding:10px 10px 12px; margin-bottom:12px;
+        }
+        /* Slim mode toggle: one short row, no description lines */
+        .playbar .mode-toggle{ margin-bottom:8px; gap:6px; flex-wrap:nowrap; }
+        .playbar .mode-btn{ flex:1 1 0; padding:8px 6px; font-size:12px; border-width:2px; box-shadow:3px 3px 0 var(--shadow); }
+        .playbar .mode-btn small{ display:none; }
+        /* Reorder: Connect + Join first, lobby picker second, stats last */
+        .bar-grid{
+          grid-template-columns:1fr; gap:8px;
+          grid-template-areas:"actions" "lobby" "stats";
+        }
+        .bar-label{ display:none; }
+        /* Connect row stretches; the Join / Start button goes big */
+        .playbar .bar-row{ margin-bottom:6px; flex-wrap:nowrap; }
+        .playbar .bar-row .btn{ flex:1 1 0; }
+        .playbar #joinBtn, .playbar #realJoinBtn{ padding:15px 12px; font-size:16px; }
+        .playbar #joinHint{ font-size:12px; line-height:1.45; margin-top:6px !important; }
+        .bar-real-status{ margin-top:8px; padding:4px 10px; }
+        .bar-real-status .stat-row{ padding:4px 0; font-size:12.5px; }
+        /* Compact lobby picker: one short row of three small buttons —
+           QUICK 4 / CLASSIC 9 / BIG 16 — no mini-grids, no sub-lines */
+        .playbar .lobbies{ display:flex; gap:6px; }
+        .playbar .lobby{
+          flex:1 1 0; flex-direction:row; align-items:center; justify-content:center;
+          padding:8px 4px; gap:0; text-align:center; border-width:2px;
+          box-shadow:3px 3px 0 var(--shadow);
+        }
+        .playbar .lobby .mini-grid{ display:none; }
+        .playbar .lobby .l-sub{ display:none; }
+        .playbar .lobby .l-name{ font-size:10px; white-space:nowrap; }
+        /* Stats collapse to one compact line under everything else */
+        .bar-stats{ margin-bottom:0; font-size:12px; gap:3px 10px; }
+      }
+
+      /* ---------- mode toggle + real-mode contract bar ---------- */
+      .mode-toggle{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+      .mode-btn{
+        flex:1 1 220px; appearance:none; cursor:pointer; font:inherit; font-weight:700; font-size:14.5px;
+        border:3px solid var(--ink); border-radius:6px; padding:12px 14px;
+        background:var(--panel); color:var(--ink-dim); box-shadow:4px 4px 0 var(--shadow);
+      }
+      .mode-btn.sel{ background:var(--gold); color:#241a02; }
+      .mode-btn.sel.real{ background:var(--teal); color:#fff; }
+      @media (prefers-color-scheme: dark){ .mode-btn.sel.real{ color:#04231f; } }
+      .mode-btn small{ display:block; font-weight:400; font-size:12px; margin-top:3px; }
+      .real-contract-bar{
+        background:var(--panel); border:3px solid var(--teal); border-radius:6px;
+        box-shadow:6px 6px 0 var(--shadow); padding:12px 14px; margin-bottom:16px; font-size:13.5px; line-height:1.6;
+      }
+      .real-contract-bar .rc-addr{ font-family:"IBM Plex Mono", monospace; font-weight:600; word-break:break-all; }
+      .badge{
+        display:inline-block; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+        border:2px solid var(--ink); border-radius:4px; padding:2px 7px; margin-right:6px; background:var(--panel2);
+      }
+      .badge.warn{ background:var(--red-soft); color:var(--red); }
+      .badge.ok{ background:var(--teal-soft); color:var(--teal); }
+
+      /* ---------- real-mode panel ---------- */
+      .real-panel{ border-color:var(--teal); }
+      .tx-list{ list-style:none; margin:10px 0 0; padding:0; font-size:13.5px; line-height:1.55; }
+      .tx-list li{ border:2px dashed var(--line); border-radius:6px; padding:8px 10px; margin-bottom:8px; background:var(--panel2); }
+      .tx-list .tx-status{ font-weight:700; }
+      .tx-list .st-waiting{ color:var(--ink-dim); }
+      .tx-list .st-sent{ color:var(--gold); }
+      .tx-list .st-confirmed{ color:var(--green); }
+      .tx-list .st-failed{ color:var(--red); }
+      .tx-list a{ color:var(--purple); font-family:"IBM Plex Mono", monospace; font-size:12px; word-break:break-all; }
+      .low-bal{
+        border:3px solid var(--red); background:var(--red-soft); border-radius:6px;
+        padding:10px 12px; font-size:13.5px; line-height:1.55; margin-top:10px; font-weight:600;
+      }
+      .real-actions{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+      .real-actions .btn{ width:100%; }
+      /* ---------- live lobby-waiting (Real Mode, phase Filling) ---------- */
+      .lobby-waiting{
+        border:3px solid var(--gold); background:var(--gold-soft); border-radius:6px;
+        padding:12px 14px; margin-top:12px;
+      }
+      .lobby-waiting .lw-head{
+        font-family:"Press Start 2P", monospace; font-size:13px; line-height:1.8; color:var(--ink);
+      }
+      .lobby-waiting .lw-head .lw-more{ color:var(--gold); }
+      @media (prefers-color-scheme: dark){ .lobby-waiting .lw-head .lw-more{ color:var(--gold); } }
+      .lobby-waiting .lw-sub{ font-size:13px; line-height:1.55; margin-top:6px; color:var(--ink); }
+      .lobby-waiting .lw-updated{ font-size:11.5px; color:var(--ink-dim); margin-top:8px; }
+      .lw-slots{ display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+      .lw-slots i{
+        width:18px; height:18px; display:block; border:2px solid var(--ink); border-radius:3px;
+        background:var(--gold);
+      }
+      .lw-slots i.empty{ background:transparent; border-style:dashed; border-color:var(--ink-dim); animation:lw-pulse 1.2s steps(2) infinite; }
+      @keyframes lw-pulse{ 50%{ opacity:.35; } }
+      @media (prefers-reduced-motion: reduce){ .lw-slots i.empty{ animation:none; } }
+      .lw-players{ list-style:none; margin:10px 0 0; padding:0; display:grid; gap:6px; }
+      .lw-players li{
+        display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+        background:var(--panel); border:2px solid var(--line); border-radius:5px; padding:6px 9px;
+        font-size:13px; line-height:1.4;
+      }
+      .lw-players li.you{ border-color:var(--gold); font-weight:700; }
+      .lw-players li.open{ border-style:dashed; color:var(--ink-dim); background:transparent; }
+      .lw-players .lw-num{
+        font-family:"Press Start 2P", monospace; font-size:9px; line-height:1.5;
+        background:var(--panel2); border:2px solid var(--ink); border-radius:3px; padding:2px 5px; flex:none;
+      }
+      .lw-players li.you .lw-num{ background:var(--gold); }
+      .lobby-waiting.is-started{ border-color:var(--green); background:var(--green-soft); }
+      .lobby-waiting.is-started .lw-head{ color:var(--green); }
+      /* Board-area version: same live info, right above the tiles */
+      .board-waiting{ margin-bottom:14px; }
+      .gameid-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+      .gameid-row input{
+        font:inherit; font-family:"IBM Plex Mono", monospace; width:110px; padding:9px 10px;
+        border:3px solid var(--ink); border-radius:6px; background:var(--panel); color:var(--ink);
+      }
+
+      /* ---------- board ---------- */
+      .board-head{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-bottom:12px; }
+      .board-head .round-label{ font-family:"Press Start 2P", monospace; font-size:12px; line-height:1.7; }
+      .wheel-zone{
+        display:flex; gap:16px; align-items:center; background:var(--wheel-bg);
+        border:3px solid var(--ink); border-radius:6px; padding:12px 16px; margin-bottom:14px;
+        box-shadow:inset 0 0 0 3px var(--line);
+      }
+      .wheel-wrap{ width:104px; height:104px; flex:none; position:relative; }
+      .wheel-wrap svg{ width:100%; height:100%; display:block; }
+      .wheel-wrap.spinning svg{ animation:spin .55s linear infinite; }
+      @keyframes spin{ to{ transform:rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce){ .wheel-wrap.spinning svg{ animation-duration:2.4s; } }
+      .wheel-info{ min-width:0; }
+      .wheel-info .w-status{ font-family:"Press Start 2P", monospace; font-size:12px; line-height:1.7; margin-bottom:6px; }
+      .wheel-info .w-sub{ font-size:13.5px; color:var(--ink-dim); line-height:1.5; }
+      .count-num{ font-family:"Press Start 2P", monospace; font-size:26px; color:var(--gold); }
+      .timerbar{ height:12px; border:2px solid var(--ink); border-radius:3px; background:var(--panel); overflow:hidden; margin-top:8px; }
+      .timerbar i{ display:block; height:100%; background:repeating-linear-gradient(90deg, var(--gold) 0 10px, var(--teal) 10px 20px); width:100%; transition:width .25s linear; }
+
+      .grid{ display:grid; gap:10px; }
+      .grid.g2{ grid-template-columns:repeat(2,1fr); max-width:420px; margin:0 auto; }
+      .grid.g3{ grid-template-columns:repeat(3,1fr); }
+      .grid.g4{ grid-template-columns:repeat(4,1fr); }
+      @media (max-width:520px){ .grid.g4{ gap:6px; } }
+      .tile{
+        background:var(--tile); border:3px solid var(--ink); border-radius:6px; padding:8px 6px 7px;
+        text-align:center; position:relative; box-shadow:4px 4px 0 var(--shadow);
+        transition:filter .3s, opacity .3s, transform .3s;
+      }
+      .tile svg{ width:72%; max-width:86px; height:auto; display:block; margin:0 auto 4px; image-rendering:pixelated; }
+      .grid.g4 .tile svg{ max-width:64px; }
+      .tile .t-addr{ font-family:"IBM Plex Mono", monospace; font-size:11.5px; font-weight:600; word-break:break-all; line-height:1.35; }
+      .tile .t-tag{ font-size:10.5px; margin-top:3px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.08em; }
+      .tile.you{ border-color:var(--gold); box-shadow:4px 4px 0 var(--gold); }
+      .tile.you .t-tag{ color:var(--gold); font-weight:700; }
+      .tile.target{ animation:targetflash .5s steps(2) infinite; }
+      @keyframes targetflash{ 50%{ background:var(--red-soft); } }
+      .tile.dead{ background:var(--tile-dead); filter:grayscale(1); opacity:.55; box-shadow:none; }
+      .tile.dead::after{
+        content:"✕"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        font-size:44px; font-weight:900; color:var(--red); opacity:.85;
+      }
+      .tile.winner{ border-color:var(--gold); background:var(--gold-soft); animation:winnerpulse 1s steps(2) infinite; }
+      @keyframes winnerpulse{ 50%{ box-shadow:4px 4px 0 var(--gold), 0 0 0 6px var(--gold-soft); } }
+      .empty-board{
+        border:3px dashed var(--line); border-radius:6px; padding:34px 18px; text-align:center; color:var(--ink-dim);
+      }
+      .empty-board .px{ font-size:12px; line-height:2; color:var(--ink-dim); }
+
+      /* ---------- final tile / pot ---------- */
+      .final-tile{
+        border:3px solid var(--gold); border-radius:6px; background:var(--gold-soft);
+        padding:14px; text-align:center; margin-bottom:12px;
+      }
+      .final-tile .ft-label{ font-family:"Press Start 2P", monospace; font-size:11px; line-height:1.7; }
+      .final-tile .ft-pot{ font-family:"Press Start 2P", monospace; font-size:24px; color:var(--gold); margin:8px 0 4px; }
+      .final-tile .ft-sub{ font-size:12.5px; color:var(--ink-dim); }
+      .tier-badge{
+        display:inline-block; font-family:"Press Start 2P", monospace; font-size:11px;
+        padding:7px 10px; border:3px solid var(--ink); border-radius:4px; margin-top:10px; line-height:1.5;
+      }
+      .tier-badge.full{ background:var(--green-soft); color:var(--green); }
+      .tier-badge.half{ background:var(--gold-soft); color:var(--gold); }
+      .tier-badge.empty{ background:var(--red-soft); color:var(--red); }
+      .tier-badge.sealed{ background:var(--panel2); color:var(--ink-dim); }
+
+      /* ---------- raise panel ---------- */
+      .raise-panel{ border-color:var(--purple); background:var(--purple-soft); }
+      .raise-panel .r-title{ font-family:"Press Start 2P", monospace; font-size:12px; line-height:1.7; margin-bottom:8px; }
+      .raise-panel .r-votes{ font-size:13.5px; line-height:1.9; }
+      .raise-panel .r-votes .ok, .modal-box .r-votes .ok{ color:var(--green); font-weight:700; }
+      .raise-panel .r-votes .no, .modal-box .r-votes .no{ color:var(--red); font-weight:700; }
+      .raise-panel .r-votes .wait, .modal-box .r-votes .wait{ color:var(--ink-dim); }
+      /* ---------- spectator bar (you are out, game still running) ---------- */
+      .spectator-bar{
+        display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap;
+        border:3px dashed var(--red); background:var(--red-soft); border-radius:6px;
+        padding:12px 14px; margin-bottom:14px;
+      }
+      .spectator-bar .sb-text{ font-size:13.5px; line-height:1.55; flex:1 1 260px; }
+      .spectator-bar .sb-text b{ font-family:"Press Start 2P", monospace; font-size:11px; line-height:1.7; color:var(--red); }
+      .hidden{ display:none !important; }
+
+      /* ---------- raise modal (decision + transaction, impossible to miss) ---------- */
+      .modal-overlay{
+        position:fixed; inset:0; z-index:1000;
+        background:rgba(10,8,32,.74);
+        display:flex; align-items:center; justify-content:center;
+        padding:14px; overflow-y:auto;
+      }
+      .modal-box{
+        background:var(--panel); border:4px solid var(--ink); border-top:12px solid var(--purple);
+        border-radius:8px; box-shadow:10px 10px 0 var(--shadow);
+        width:100%; max-width:600px; padding:24px 22px 20px;
+        max-height:calc(100vh - 28px); overflow-y:auto;
+        animation:modalpop .18s steps(3);
+      }
+      @keyframes modalpop{ from{ transform:scale(.94); } to{ transform:scale(1); } }
+      @media (prefers-reduced-motion: reduce){ .modal-box{ animation:none; } }
+      .modal-box .m-title{
+        font-family:"Press Start 2P", monospace; font-size:16px; line-height:1.75;
+        text-align:center; color:var(--purple); margin:0;
+      }
+      .modal-box .m-text{ font-size:15px; line-height:1.55; text-align:center; margin:12px 0 0; }
+      .modal-box .m-amount{
+        font-family:"Press Start 2P", monospace; font-size:26px; color:var(--gold);
+        text-align:center; margin:16px 0 2px; line-height:1.5;
+      }
+      .modal-box .m-amount-sub{ text-align:center; font-size:13.5px; color:var(--ink-dim); margin:0; }
+      .modal-box .m-timer-label{
+        text-align:center; font-size:11.5px; text-transform:uppercase; letter-spacing:.16em;
+        color:var(--ink-dim); margin-top:16px;
+      }
+      .modal-box .m-count{ text-align:center; min-height:58px; }
+      .modal-box .m-count .count-num{ font-size:46px; }
+      .modal-box .timerbar{ height:16px; margin-top:4px; }
+      .modal-box .r-votes{ font-size:14.5px; line-height:1.9; margin-top:14px; }
+      .modal-box .m-btns{ display:flex; gap:12px; margin-top:20px; }
+      .btn.big{ flex:1; padding:18px 12px; font-size:17px; }
+      .btn.big.block{ flex:none; }
+      @media (max-width:520px){ .modal-box .m-btns{ flex-direction:column; } }
+      .modal-box .m-note{ text-align:center; margin:14px 0 0; }
+
+      /* ---------- winner modal (celebration / teasing, impossible to miss) ---------- */
+      .winner-overlay{ z-index:1100; }
+      /* NOTE: overflow-y must stay auto — with overflow:hidden the tall
+         winner content (breakdown + seed + buttons) is clipped by the
+         box's max-height and the Play again / See the board buttons can
+         never be reached. The confetti layer clips itself. */
+      .winner-box{ text-align:center; position:relative; overflow-x:hidden; overflow-y:auto; }
+      .winner-box .w-close{
+        position:sticky; top:0; z-index:7; display:block; margin-left:auto;
+        width:42px; height:42px; padding:0; cursor:pointer;
+        border:3px solid var(--ink); border-radius:6px;
+        background:var(--panel2); color:var(--ink);
+        font-size:17px; font-weight:900; line-height:1;
+        box-shadow:3px 3px 0 var(--shadow);
+      }
+      .winner-box .w-close:active{ transform:translate(2px,2px); box-shadow:1px 1px 0 var(--shadow); }
+      /* The action row pins to the bottom of the popup while it scrolls,
+         so Play again / See the board are always on screen. */
+      .winner-box .m-btns{
+        position:sticky; bottom:0; z-index:6;
+        background:var(--panel); border-top:2px dashed var(--line);
+        padding:14px 0 2px; margin-top:16px;
+      }
+      .winner-box.is-full{ border-top:12px solid var(--gold); }
+      .winner-box.is-half{ border-top:12px solid var(--teal); }
+      .winner-box.is-empty{ border-top:12px solid var(--red); }
+      .winner-box .w-hamster{ width:132px; max-width:44vw; margin:2px auto 4px; position:relative; }
+      .winner-box .w-hamster svg{ width:100%; height:auto; display:block; image-rendering:pixelated; }
+      .winner-box.is-full .w-hamster, .winner-box.is-half .w-hamster{ animation:winbounce .55s steps(2) infinite alternate; }
+      .winner-box.is-empty .w-hamster{ animation:laughshake .28s steps(2) infinite alternate; }
+      @keyframes winbounce{ from{ transform:translateY(0); } to{ transform:translateY(-9px); } }
+      @keyframes laughshake{ from{ transform:rotate(-3.5deg) translateY(0); } to{ transform:rotate(3.5deg) translateY(-4px); } }
+      @media (prefers-reduced-motion: reduce){
+        .winner-box.is-full .w-hamster, .winner-box.is-half .w-hamster, .winner-box.is-empty .w-hamster{ animation:none; }
+        .confetti i{ animation:none; }
+      }
+      .ha-bubble{
+        position:absolute; font-family:"Press Start 2P", monospace; color:var(--red);
+        font-size:13px; line-height:1.4; pointer-events:none;
+      }
+      .ha-bubble.h1{ top:6px; left:-14px; transform:rotate(-10deg); }
+      .ha-bubble.h2{ top:34px; right:-16px; transform:rotate(9deg); font-size:16px; }
+      .ha-bubble.h3{ bottom:8px; left:-8px; transform:rotate(6deg); font-size:11px; }
+      .winner-box .w-title{
+        font-family:"Press Start 2P", monospace; font-size:19px; line-height:1.7;
+        margin:10px 0 0; color:var(--gold);
+      }
+      .winner-box.is-half .w-title{ color:var(--teal); }
+      .winner-box.is-empty .w-title{ color:var(--red); }
+      .winner-box .w-amount{
+        font-family:"Press Start 2P", monospace; font-size:30px; line-height:1.5;
+        color:var(--gold); margin:12px 0 0; word-break:break-word;
+      }
+      .winner-box.is-half .w-amount{ color:var(--teal); }
+      .winner-box.is-empty .w-amount{ color:var(--red); }
+      .winner-box .w-breakdown{ text-align:left; margin-top:16px; }
+      .winner-box .w-seed{
+        margin-top:14px; background:var(--panel2); border:2px solid var(--line); border-radius:6px;
+        padding:10px 12px; font-size:12.5px; line-height:1.65; text-align:left; word-break:break-word;
+      }
+      .winner-box .w-seed b{ color:var(--purple); }
+      .confetti{ position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+      .confetti i{
+        position:absolute; top:-14px; width:9px; height:9px; display:block;
+        animation:confall 2.6s linear infinite;
+      }
+      @keyframes confall{ to{ transform:translateY(560px) rotate(300deg); } }
+
+      /* ---------- log ---------- */
+      .log{
+        font-family:"IBM Plex Mono", monospace; font-size:12.5px; line-height:1.75;
+        max-height:300px; overflow-y:auto; padding-right:4px;
+      }
+      .log .lt{ color:var(--ink-dim); }
+      .log .good{ color:var(--green); }
+      .log .bad{ color:var(--red); }
+      .log .gold{ color:var(--gold); }
+      .log .purp{ color:var(--purple); }
+
+      /* ---------- sections below ---------- */
+      .sections{ margin-top:26px; display:grid; grid-template-columns:1fr; gap:16px; align-items:start; }
+      @media (max-width:900px){ .sections{ grid-template-columns:1fr; } }
+      .rules{ margin:0; padding-left:20px; font-size:14.5px; line-height:1.65; }
+      .rules li{ margin-bottom:7px; }
+      .rules b{ font-family:"IBM Plex Mono", monospace; font-weight:600; }
+      pre.code{
+        background:#12102e; color:#d9f7e8; border:3px solid var(--ink); border-radius:6px;
+        padding:14px; font-family:"IBM Plex Mono", monospace; font-size:11.8px; line-height:1.6;
+        overflow-x:auto; max-height:520px; overflow-y:auto; margin:0; white-space:pre;
+      }
+      @media (prefers-color-scheme: light){ pre.code{ background:#171433; } }
+      .genesis-text{
+        background:var(--panel2); border:2px solid var(--line); border-radius:6px;
+        padding:12px 14px; font-size:14px; line-height:1.65; margin-bottom:12px;
+      }
+      .copy-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+      .copied{ font-size:13px; color:var(--green); font-weight:700; }
+      .winners-list{ font-size:13.5px; line-height:1.8; }
+      .winners-list .mono{ font-size:12.5px; }
+      footer.note{ margin-top:22px; font-size:12.5px; color:var(--ink-dim); line-height:1.6; text-align:center; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+
+      <header class="top">
+        <div class="brand">
+          <h1>SQUEEK <span class="t-gold">TILES</span></h1>
+          <p>A square-grid elimination game on Squeekchain. Every player is a hamster tile. The wheel spins for 10 seconds, one tile drops — last hamster standing reaches the final tile and its prize.</p>
+        </div>
+        <div class="wallet" aria-label="Wallet">
+          <div class="w-row">
+            <span class="dot" id="walletDot"></span>
+            <span class="w-label">Wallet</span>
+            <span class="w-addr mono" id="walletAddr">Not connected</span>
+          </div>
+          <div class="w-bal"><span id="walletBal">—</span> SQK</div>
+          <div class="w-net" id="walletNet">Sepolia testnet · SQK token · Practice demo ledger — switch to Real Mode for the on-chain game</div>
+        </div>
+      </header>
+
+      <div class="chainbar" role="status">
+        <span>⛓ Squeekchain block <b id="blockHeight">…</b></span>
+        <span class="src" id="blockSource">connecting…</span>
+        <span class="formula">Final-tile seed: <b>(block × 2654435761 + 97) mod 100</b> → 0–49 FULL · 50–79 HALF · 80–99 EMPTY</span>
+      </div>
+
+      <!-- PLAY BAR: everything needed to start or join a game lives here,
+           directly above the board — mode, lobby size, wallet connect,
+           Join, plus the live pot / players count. Nothing required to
+           start or join sits below the board. -->
+      <div class="card playbar" id="playBar">
+        <div class="mode-toggle" role="group" aria-label="Game mode">
+          <button class="mode-btn sel" id="modePracticeBtn" type="button">🎮 Practice Mode<small>Free demo with practice SQK and bot players — no wallet needed</small></button>
+          <button class="mode-btn real" id="modeRealBtn" type="button">⛓ Real Mode — Sepolia<small>On-chain game against the deployed SqueekTiles contract — MetaMask required</small></button>
+        </div>
+        <div class="bar-grid">
+          <div class="bar-col-lobby">
+            <div class="bar-label">CHOOSE A <span class="accent">LOBBY</span></div>
+            <div class="lobbies" id="lobbies"></div>
+          </div>
+          <div class="bar-stats" aria-label="Entry and live game status">
+            <span>Entry <b>20 SQK</b></span>
+            <span>→ final tile <b>18 SQK</b></span>
+            <span>→ creator fee <b>2 SQK</b></span>
+            <span>Pot <b><span id="barPot">0</span> SQK</b></span>
+            <span>Players <b id="barPlayers">— / 9</b></span>
+          </div>
+          <div class="bar-col-actions">
+            <div class="bar-actions" id="barPracticeActions">
+              <div class="bar-row">
+                <button class="btn gold sm" id="connectBtn">Connect wallet</button>
+                <button class="btn sm hidden" id="faucetBtn">Faucet +1,000 SQK</button>
+              </div>
+              <button class="btn gold block" id="joinBtn" disabled>Connect wallet to play</button>
+              <p class="small" id="joinHint" style="margin:8px 0 0;">The lobby fills the moment you join — in practice mode the other tiles are bots with random addresses, standing in for other wallets.</p>
+            </div>
+            <div class="bar-actions hidden" id="barRealActions">
+              <div class="bar-row">
+                <button class="btn gold sm" id="realConnectBtn" type="button">Connect Wallet (MetaMask)</button>
+                <button class="btn sm hidden" id="realSwitchBtn" type="button">Switch to Sepolia</button>
+              </div>
+              <button class="btn gold block" id="realJoinBtn" type="button">Join CLASSIC 9 lobby — 20 SQK (auto-find)</button>
+              <div class="bar-real-status">
+                <div class="stat-row"><span>Selected lobby</span><b id="realLobbySizeLabel">CLASSIC 9 · 9 players</b></div>
+                <div class="stat-row"><span>Game</span><b id="realCurrentGameLabel">No game yet — press Join</b></div>
+                <div class="stat-row"><span>Filling</span><b id="realPlayersLabel">Players: — / —</b></div>
+                <div class="stat-row"><span>Status</span><b id="realLobbyStateLabel">Waiting to join</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="real-contract-bar hidden" id="realContractBar">
+        <div>
+          <span class="badge ok">Sepolia testnet</span><span class="badge warn">Unaudited</span><span class="badge">Test tokens — no real value</span>
+        </div>
+        <div style="margin-top:8px;">Game contract: <span class="rc-addr">0x7042Fa3563706eAcc8688AF9C3bBcf4Ae1C6F212</span></div>
+        <div class="copy-row" style="margin-top:8px;">
+          <button class="btn sm gold copy-contract-btn" type="button">Copy contract address</button>
+          <span class="copied hidden copy-contract-done">✓ Copied</span>
+          <a class="btn sm" href="https://sepolia.etherscan.io/address/0x7042Fa3563706eAcc8688AF9C3bBcf4Ae1C6F212" target="_blank" rel="noopener">View on Etherscan ↗</a>
+          <span class="small">SQK token: <span class="mono">0xd78a3956cF63164d1Fa1C622ad3c66623162Fa1e</span> · Creator fee address: <span class="mono">0x8a53644c0CF45EFc0247E8e01d24607b870793C4</span></span>
+        </div>
+      </div>
+
+      <div class="layout">
+        <!-- LEFT: mode note + real-mode panel + treasury (info & in-game actions) -->
+        <div>
+          <div class="mode-note" id="modeNote">
+            <b>Practice mode is ON.</b> This build runs the full game locally with practice SQK and bot players, so anyone — including Genesis reviewers — can play without a wallet or real tokens. The on-chain version uses the exact same rules; the Solidity contract is at the bottom of this page.
+          </div>
+
+          <div class="card real-panel hidden" id="realPanel">
+            <h2>⛓ REAL MODE — <span class="accent">SEPOLIA</span></h2>
+            <p class="small" style="margin-top:0;">This panel talks to the deployed contract — no demo ledger. Every action below is a real Sepolia transaction signed in MetaMask and paid for with Sepolia ETH gas. SQK on Sepolia is a test token with <b>no real value</b>, and the contract is <b>unaudited</b>.</p>
+            <div class="stat-row"><span>Contract</span><b class="mono" style="font-size:11px;">0x7042…6F212</b></div>
+            <div class="stat-row"><span>Network</span><b id="realNetStatus">Not checked</b></div>
+            <div class="stat-row"><span>Your address</span><b class="mono" id="realAddr" style="font-size:12px;">Not connected</b></div>
+            <div class="stat-row"><span>Your SQK balance (on-chain)</span><b><span id="realBal">—</span> SQK</b></div>
+            <div class="low-bal hidden" id="realLowBal">⚠ Your SQK balance is below the 20 SQK entry. You need at least 20 SQK in this wallet to join a real game (18 SQK to the prize pot + 2 SQK creator fee) — plus a little Sepolia ETH for gas.</div>
+            <div class="low-bal hidden" id="realWrongNet" style="border-color:var(--gold); background:var(--gold-soft);">⚠ MetaMask is not on Sepolia. Real Mode only works on Sepolia testnet (chain ID 11155111) — use the switch button and MetaMask will ask you to confirm.</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+              <button class="btn sm hidden" id="realRefreshBalBtn" type="button">Refresh balance</button>
+            </div>
+            <p class="small" id="realWalletMsg" style="margin:10px 0 0;">No wallet connected yet. Connect with the <b>Connect Wallet</b> button in the play bar above the board. If MetaMask is not installed, install it, create or import a wallet, and add the Sepolia network — then connect there.</p>
+
+            <div style="border-top:2px dashed var(--line); margin-top:14px; padding-top:12px;">
+              <div class="r-title" style="font-family:'Press Start 2P',monospace; font-size:11px; line-height:1.7;">ON-CHAIN GAME — AUTO LOBBY</div>
+              <p class="small" style="margin:6px 0 0;">Pick a lobby size in the play bar above the board — <b>QUICK 4, CLASSIC 9 or BIG 16</b> — then press Join there. The site automatically finds the newest open lobby of that size on the contract, or creates a new one if none is open. <b>You never type a game ID.</b> Joining runs, in order: <b>create if needed, 1) approve 20 SQK, 2) joinLobby</b> — you just confirm each transaction in MetaMask. The live lobby status sits in the play bar, and the waiting banner appears there and above the board.</p>
+              <p class="small" style="margin:8px 0 0;">After you join, stay on this page: while the lobby is filling this page checks the contract every few seconds, shows each new player as they join, and the game starts automatically the moment the lobby is full — you do not press anything else.</p>
+              <div class="lobby-waiting hidden" id="realWaitingBox" role="status" aria-live="polite">
+                <div class="lw-head" id="realWaitingHeadline">Waiting for players: — / —</div>
+                <div class="lw-slots" id="realWaitingSlots" aria-hidden="true"></div>
+                <div class="lw-sub">Game <b class="mono" id="realWaitingGame">—</b> <span style="color:var(--ink-dim)">(info only)</span> — live from the contract. The game starts automatically when the last player joins.</div>
+                <ul class="lw-players" id="realWaitingPlayers"></ul>
+                <div class="lw-updated" id="realWaitingUpdated">Checking the contract…</div>
+              </div>
+              <div class="small" id="realGameStatus" style="margin-top:10px;">No lobby joined yet. Pick a size in the play bar above the board and press Join there — the site will find an open lobby or create one for you.</div>
+              <div id="realLiveStats" style="margin-top:6px;"></div>
+              <ul class="tx-list" id="realTxList"></ul>
+            </div>
+
+            <div style="border-top:2px dashed var(--line); margin-top:14px; padding-top:12px;">
+              <div style="font-family:'Press Start 2P',monospace; font-size:11px; line-height:1.7;">IN-GAME ACTIONS (ON-CHAIN)</div>
+              <p class="small" style="margin:6px 0 0;">Same rules as Practice Mode, driven by the contract: 10-second spin, raises of +20 SQK with a 30-second decision window and a separate 60-second transaction window. Anyone can call Spin / Open Tx Window / Settle once the contract's timers allow it.</p>
+              <div class="real-actions">
+                <button class="btn sm purple" id="realSpinBtn" type="button">Spin &amp; eliminate</button>
+                <button class="btn sm purple" id="realProposeBtn" type="button">Propose raise +20</button>
+                <button class="btn sm teal" id="realAcceptBtn" type="button">Accept raise</button>
+                <button class="btn sm red" id="realDeclineBtn" type="button">Decline raise</button>
+                <button class="btn sm" id="realOpenTxBtn" type="button">Open tx window</button>
+                <button class="btn sm gold" id="realConfirmTxBtn" type="button">Confirm raise tx (+20)</button>
+                <button class="btn sm" id="realMarkFailBtn" type="button">Mark my tx failed</button>
+                <button class="btn sm" id="realSettleBtn" type="button">Settle raise</button>
+                <button class="btn sm purple" id="realDrawBtn" type="button">Treasury draw</button>
+                <button class="btn sm" id="realPollBtn" type="button">Refresh state now</button>
+              </div>
+              <p class="small" style="margin:10px 0 0;">Confirm raise tx also approves 20 SQK first if your allowance is too low. Treasury draw works once 1,800 blocks have passed since the last draw and the treasury holds SQK.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>🏦 TREASURY</h2>
+            <div class="stat-row"><span>Treasury balance</span><b><span id="treasuryBal">0</span> SQK</b></div>
+            <div class="stat-row"><span>Creator fees collected</span><b><span id="creatorFees">0</span> SQK</b></div>
+            <div class="stat-row"><span>Entrants this draw period</span><b id="entrantsToday">0</b></div>
+            <div class="stat-row"><span>Games this draw period</span><b id="gamesToday">0</b></div>
+            <div class="stat-row"><span>Next draw block</span><b id="nextDrawBlock">—</b></div>
+            <div class="stat-row"><span>Blocks until draw</span><b id="blocksToDraw">—</b></div>
+            <p class="small">When a final tile lands HALF or EMPTY, that share of the pot moves here. Every 1,800 blocks (Sepolia makes a block about every 12 seconds, so roughly every 6 hours) anyone can trigger the draw: the whole treasury is raffled among all addresses that entered a game before that draw block and airdropped to one winner.</p>
+            <button class="btn purple block" id="drawBtn" disabled>Run the treasury draw</button>
+            <div style="height:10px"></div>
+            <div class="winners-list" id="drawWinners"><span class="small">No draws yet.</span></div>
+          </div>
+        </div>
+
+        <!-- CENTER: board -->
+        <div class="board-col">
+          <div class="card">
+            <div class="board-head">
+              <span class="round-label" id="roundLabel">NO GAME RUNNING</span>
+              <span class="small" id="aliveLabel"></span>
+            </div>
+            <div class="wheel-zone">
+              <div class="wheel-wrap" id="wheelWrap" aria-hidden="true"></div>
+              <div class="wheel-info">
+                <div class="w-status" id="wheelStatus">THE WHEEL IS RESTING</div>
+                <div id="wheelCount"></div>
+                <div class="w-sub" id="wheelSub">Join a lobby and the hamster starts running. Each spin lasts 10 seconds, then exactly one tile is eliminated — picked randomly from the addresses still in the game.</div>
+                <div class="timerbar hidden" id="timerBar"><i id="timerFill"></i></div>
+                <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                  <button class="btn sm purple hidden" id="proposeBtn">Propose raise +20 SQK</button>
+                </div>
+              </div>
+            </div>
+            <div class="spectator-bar hidden" id="spectatorBar">
+              <div class="sb-text"><b>👀 YOU ARE OUT — SPECTATING</b><br/>You were eliminated, but this game is still running. Keep watching it play out below, or leave it and start a fresh game — your call.</div>
+              <button class="btn gold sm" id="spectatorNewBtn" type="button">Leave &amp; start a new game</button>
+            </div>
+            <div class="lobby-waiting board-waiting hidden" id="realBoardWaiting" role="status" aria-live="polite">
+              <div class="lw-head" id="realBoardWaitingHeadline">Waiting for players: — / —</div>
+              <div class="lw-slots" id="realBoardWaitingSlots" aria-hidden="true"></div>
+              <div class="lw-sub" id="realBoardWaitingSub">Live from the contract — this updates on its own as players join. No button to press: the game starts automatically when the lobby is full.</div>
+              <ul class="lw-players" id="realBoardWaitingPlayers"></ul>
+              <div class="lw-updated" id="realBoardWaitingUpdated">Checking the contract…</div>
+            </div>
+            <div id="boardArea">
+              <div class="empty-board">
+                <div class="px">THE BOARD IS EMPTY</div>
+                <p>Pick a 4, 9 or 16 player lobby in the play bar above and join.<br/>The tiles always form a perfect square — 5 or 7 players can never start a game.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: final tile + raise + log -->
+        <div>
+          <div class="card">
+            <h2>★ THE FINAL <span class="accent">TILE</span></h2>
+            <div class="final-tile">
+              <div class="ft-label">PRIZE LOCKED INSIDE</div>
+              <div class="ft-pot"><span id="potAmount">0</span> SQK</div>
+              <div class="ft-sub" id="potSub">No game running</div>
+              <div><span class="tier-badge sealed" id="tierBadge">SEALED — NO GAME</span></div>
+            </div>
+            <div class="stat-row"><span>Seed block</span><b id="seedBlock">—</b></div>
+            <div class="stat-row"><span>Seed value</span><b id="seedValue">—</b></div>
+            <div class="stat-row"><span>Odds</span><b>FULL 50% · HALF 30% · EMPTY 20%</b></div>
+            <p class="small">The final tile's tier is fixed by formula the moment the game starts, from the Squeekchain block produced at that moment. Nobody — not even the creator — can change it afterwards.</p>
+          </div>
+
+          <div class="card raise-panel hidden" id="raisePanel">
+            <div class="r-title">⚡ RAISE PROPOSED</div>
+            <p class="small" style="color:var(--ink); margin:0 0 8px;" id="raiseText"></p>
+            <div class="timerbar"><i id="raiseFill"></i></div>
+            <div class="r-votes" id="raiseVotes" style="margin-top:8px;"></div>
+            <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+              <button class="btn teal sm" id="raiseAcceptBtn">Accept +20 SQK</button>
+              <button class="btn red sm" id="raiseDeclineBtn">Decline — leave game</button>
+            </div>
+            <p class="small" style="margin:10px 0 0;">The 30-second timer above is <b>only</b> for accepting or declining — no answer counts as a decline, and the timer <b>ends the moment every alive player has decided</b>. Accepting is not paying yet: if you accept, a separate <b>60-second transaction window</b> opens below for submitting and confirming your +20 SQK transaction, and it too ends early once every accepted transaction is confirmed or failed. Raise limit depends on the lobby — <b>1 raise</b> in a 4-player game, <b>2</b> in a 9-player game, <b>3</b> in a 16-player game — always +20 SQK, never more.</p>
+            <div id="txSection" class="hidden" style="margin-top:12px; border-top:2px dashed var(--line); padding-top:12px;">
+              <div class="r-title">⛓ TRANSACTION WINDOW — UP TO 60 SECONDS</div>
+              <p class="small" style="color:var(--ink); margin:0 0 8px;">Everyone who accepted now submits their <b>+20 SQK</b> raise transaction on Sepolia and waits for it to confirm. The window <b>ends early</b> once every accepted transaction is confirmed or failed. Anyone whose transaction is <b>not confirmed</b> when this timer ends is eliminated.</p>
+              <div class="timerbar"><i id="txFill"></i></div>
+              <div id="txCount" style="margin-top:6px;"></div>
+              <div class="r-votes" id="txVotes" style="margin-top:8px;"></div>
+              <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                <button class="btn gold sm" id="txConfirmBtn">Submit + confirm my +20 SQK tx</button>
+              </div>
+              <p class="small" id="txHint" style="margin:10px 0 0;">In practice mode this simulates the Sepolia confirmation — on-chain, your wallet signs the transaction and the contract waits for it to land.</p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>📜 GAME <span class="accent">LOG</span></h2>
+            <div class="log" id="gameLog">
+              <div><span class="lt">—</span> Welcome to Squeek Tiles. Connect a wallet and join a lobby.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sections">
+        <div class="card">
+          <h2>HOW IT <span class="accent">PLAYS</span></h2>
+          <ol class="rules">
+            <li><b>Square lobbies only.</b> A game starts with exactly <b>4 (2×2)</b>, <b>9 (3×3)</b> or <b>16 (4×4)</b> players — one hamster tile each. Any other count can never form the board.</li>
+            <li><b>Entry is 20 SQK.</b> Of every entry, <b>18 SQK</b> goes into the final tile's prize and <b>2 SQK</b> is the game fee, paid to the creator's address. Starting pots: <b>72 SQK</b> (4 players), <b>162 SQK</b> (9 players), <b>288 SQK</b> (16 players).</li>
+            <li><b>The wheel decides.</b> The hamster runs, the wheel spins for <b>10 seconds</b>, then stops and one address is picked at random from the players still alive and eliminated. Repeat until one tile remains.</li>
+            <li><b>The final tile has 3 tiers,</b> locked at game start by the block-seed formula above: <b>FULL (50%)</b> the survivor takes the whole pot · <b>HALF (30%)</b> half to the survivor, half to the treasury · <b>EMPTY (20%)</b> the whole pot goes to the treasury.</li>
+            <li><b>Raises — decision first.</b> After an elimination, any surviving player can propose a raise. Everyone still alive gets <b>30 seconds to accept or decline</b> the same <b>+20 SQK</b> — that window is only for deciding, and it <b>ends immediately</b> once every alive player has accepted or declined. Declining (or not answering) eliminates you on that tile.</li>
+            <li><b>Raises — then the transaction window.</b> Everyone who accepted gets a separate <b>60 seconds</b> to submit and confirm their +20 SQK transaction on Sepolia (18 to the pot, 2 fee). Each player's status is shown live — <b>pending / confirmed / failed</b> — the window <b>ends immediately</b> once every accepted transaction is confirmed or failed, and anyone not confirmed when it ends is eliminated. The raise limit depends on the lobby: <b>1 raise</b> in a 4-player game, <b>2</b> in a 9-player game, <b>3</b> in a 16-player game — always the entry amount, so nobody can price others out with a bigger raise.</li>
+            <li><b>Treasury airdrop.</b> Every <b>1,800 blocks</b> on Sepolia (about 12 seconds per block, so roughly <b>every 6 hours</b>) anyone can trigger the draw: everything the treasury has collected is raffled among all addresses that entered a game before that draw block, and airdropped to one winner.</li>
+            <li><b>On-chain:</b> connect a wallet, approve SQK, then send the 20 SQK entry — the join transaction is recorded by the contract on Sepolia. The contract at the bottom of this page is the real thing this demo mirrors.</li>
+          </ol>
+        </div>
+
+      </div>
+
+      <div class="card" style="margin-top:16px;">
+        <h2>THE CONTRACT — <span class="accent">SqueekTiles.sol</span> (Sepolia · SQK)</h2>
+        <p class="small" style="margin-top:0;">The on-chain version of exactly the game above: wallet connect → approve SQK → <span class="mono">joinLobby()</span> records the 20 SQK entry transaction. The tier formula, raise rules (lobby raise limit of 1 / 2 / 3 × entry amount, a 30-second decision window that ends early once everyone has accepted or declined, plus a separate 60-second transaction window that ends early once every accepted transaction is confirmed or failed), creator fee and the treasury draw every 1,800 blocks (about 6 hours) all live in the contract, not on a server.</p>
+        <pre class="code" id="contractCode"></pre>
+        <div style="height:12px"></div>
+        <div class="copy-row">
+          <button class="btn gold sm" data-copy="contractCode">Copy contract</button>
+          <span class="copied hidden" data-copied>✓ Copied</span>
+        </div>
+      </div>
+
+      <footer class="note">
+        Squeek Tiles · A Squeekchain Genesis project · SQK on Sepolia is a test token with no real-world value · Practice mode uses an in-page demo ledger only. Real Mode sends real transactions to the deployed SqueekTiles contract on Sepolia testnet (unaudited) — it moves Sepolia test SQK only, never mainnet funds.
+      </footer>
+    </div>
+
+    <!-- RAISE MODAL: opens over the whole page the moment a raise is proposed.
+         Step 1 = 30s decision (Accept / Decline). Step 2 = 60s transaction window.
+         It never closes early by itself — it stays until the window ends or everyone is done. -->
+    <div class="modal-overlay hidden" id="raiseModal" role="dialog" aria-modal="true" aria-label="Raise in progress">
+      <div class="modal-box">
+        <div id="modalDecisionStep">
+          <p class="m-title">⚡ RAISE PROPOSED</p>
+          <p class="m-text" id="modalRaiseText"></p>
+          <div class="m-amount">+20 SQK</div>
+          <p class="m-amount-sub">18 SQK goes to the final tile's pot · 2 SQK creator fee</p>
+          <div class="m-timer-label">Seconds left to decide</div>
+          <div class="m-count" id="modalRaiseCount"></div>
+          <div class="timerbar"><i id="modalRaiseFill"></i></div>
+          <div class="r-votes" id="modalRaiseVotes"></div>
+          <div class="m-btns">
+            <button class="btn teal big" id="modalAcceptBtn">Accept +20 SQK</button>
+            <button class="btn red big" id="modalDeclineBtn">Decline — leave game</button>
+          </div>
+          <p class="small m-note">This popup stays open until everyone has decided or the timer runs out — no answer counts as a decline. If you accept, the transaction step opens <b>right here in this popup</b>, no scrolling.</p>
+        </div>
+        <div id="modalTxStep" class="hidden">
+          <p class="m-title">⛓ CONFIRM YOUR TRANSACTION</p>
+          <p class="m-text">The decision is made. Everyone who accepted now submits their <b>+20 SQK</b> raise transaction on Sepolia (18 SQK to the pot, 2 SQK creator fee) and waits for it to confirm. Anyone <b>not confirmed</b> when this timer ends is eliminated.</p>
+          <div class="m-timer-label">Seconds left to confirm</div>
+          <div class="m-count" id="modalTxCount"></div>
+          <div class="timerbar"><i id="modalTxFill"></i></div>
+          <div class="r-votes" id="modalTxVotes"></div>
+          <div class="m-btns">
+            <button class="btn gold big block" id="modalTxConfirmBtn">Confirm transaction — submit +20 SQK</button>
+          </div>
+          <p class="small m-note" id="modalTxHint"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- WINNER MODAL: opens over the whole page the moment one tile remains.
+         FULL / HALF get the celebration state with the full pot breakdown;
+         EMPTY gets the laughing, teasing hamster — the winner takes 0 SQK
+         and the whole pot goes to the treasury. -->
+    <div class="modal-overlay winner-overlay hidden" id="winnerModal" role="dialog" aria-modal="true" aria-label="Game result">
+      <div class="modal-box winner-box is-full" id="winnerBox">
+        <button class="w-close" id="winnerXBtn" type="button" aria-label="Close result popup">✕</button>
+        <div class="confetti hidden" id="winnerConfetti" aria-hidden="true"></div>
+        <div class="w-hamster" id="winnerHamster"></div>
+        <p class="w-title" id="winnerTitle">🏆 WINNER!</p>
+        <p class="m-text" id="winnerText"></p>
+        <div><span class="tier-badge sealed" id="winnerTierBadge">FULL</span></div>
+        <div class="w-amount" id="winnerAmount"></div>
+        <p class="m-amount-sub" id="winnerAmountSub"></p>
+        <div class="w-breakdown">
+          <div class="stat-row"><span>Winner</span><b class="mono" id="winnerName">—</b></div>
+          <div class="stat-row"><span>Lobby</span><b id="winnerLobby">—</b></div>
+          <div class="stat-row"><span>Total pot</span><b><span id="winnerPot">0</span> SQK</b></div>
+          <div class="stat-row"><span>Winner receives</span><b><span id="winnerGets">0</span> SQK</b></div>
+          <div class="stat-row"><span>To the treasury</span><b><span id="winnerTreasury">0</span> SQK</b></div>
+          <div class="stat-row"><span>Creator fees paid this game</span><b><span id="winnerFees">0</span> SQK</b></div>
+        </div>
+        <div class="w-seed mono" id="winnerSeed"></div>
+        <div class="m-btns">
+          <button class="btn gold big" id="playAgainBtn">▶ Play again</button>
+          <button class="btn big" id="winnerCloseBtn">See the board</button>
+        </div>
+        <p class="small m-note" id="winnerNote"></p>
+      </div>
+    </div>
+
+    <script type="text/plain" id="contractSrc">// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+interface IERC20 {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
+    function transfer(address to, uint256 amount) external returns (bool);
+    function balanceOf(address account) external view returns (uint256);
+}
+
+/// @title SqueekTiles — square-grid elimination game for Squeekchain (SQK / Sepolia)
+/// @notice Lobbies are perfect squares only: 4 (2x2), 9 (3x3) or 16 (4x4).
+///         Entry is 20 SQK: 18 SQK to the final tile's prize, 2 SQK creator fee.
+///         The wheel spins 10 seconds per round, then one entered address is
+///         randomly eliminated, until one survivor reaches the final tile.
+///         The final tile's tier is fixed at game start from the block seed:
+///           seed = (block.number * 2654435761 + 97) % 100
+///           0-49 FULL (winner takes all) · 50-79 HALF (half to treasury)
+///           80-99 EMPTY (all to treasury)
+///         Raises: any survivor may propose +20 SQK (always the entry amount).
+///         The raise limit depends on the lobby: 1 raise in a 4-player game,
+///         2 in a 9-player game, 3 in a 16-player game. A raise has two
+///         separate windows: 30 seconds only to accept or decline — which
+///         closes early once every alive player has a recorded decision
+///         (accepted via acceptRaise, or declined via declineRaise) — then,
+///         for everyone who accepted, a further 60 seconds to submit and
+///         confirm the +20 SQK transaction on-chain, which also closes
+///         early once every accepted transaction has a recorded outcome
+///         (confirmed via confirmRaiseTx, or failed via
+///         markRaiseTxFailed). Declining, staying
+///         silent, or leaving the transaction unconfirmed when its window
+///         ends all mean elimination.
+///         Treasury draw: every DRAW_INTERVAL blocks (1,800 blocks, about
+///         6 hours at Sepolia's ~12-second block time), anyone can call
+///         treasuryDraw() to raffle the whole treasury among all addresses
+///         that entered a game before that draw block, airdropped to one winner.
+contract SqueekTiles {
+    IERC20 public immutable sqk;
+    address public immutable creator;          // receives the 2 SQK fee per payment
+    uint256 public constant ENTRY      = 20 ether;  // SQK has 18 decimals
+    uint256 public constant TO_PRIZE   = 18 ether;
+    uint256 public constant FEE        = 2 ether;
+    uint256 public constant SPIN_TIME  = 10 seconds;
+    uint256 public constant RAISE_TIME = 30 seconds; // decision window: accept / decline only
+    uint256 public constant TX_TIME    = 60 seconds; // transaction window: submit + confirm
+    uint256 public constant DRAW_INTERVAL = 1800; // blocks between treasury draws (~6 hours at ~12s per block)
+
+    enum Tier { Full, Half, Empty }
+    enum Phase { Filling, Playing, RaiseOpen, RaiseTx, Finished }
+
+    struct Game {
+        uint8 size;                 // 4, 9 or 16
+        Phase phase;
+        uint256 pot;                // SQK locked in the final tile
+        uint256 seedBlock;          // block the tier seed was taken from
+        uint256 seed;               // 0..99, fixed at start
+        Tier tier;                  // fixed at start, revealed at the end
+        uint8 raisesUsed;
+        uint8 maxRaises;            // 1 for 4 players, 2 for 9, 3 for 16
+        uint256 raiseDeadline;      // end of the 30s decision window
+        uint256 txDeadline;         // end of the 60s transaction window
+        address raiseProposer;
+        uint256 spinReadyAt;        // earliest time the next elimination can run
+        address winner;
+    }
+
+    uint256 public nextGameId = 1;
+    mapping(uint256 => Game) public games;
+    mapping(uint256 => address[]) public players;        // every entered address
+    mapping(uint256 => mapping(address => bool)) public alive;
+    mapping(uint256 => mapping(address => bool)) public raiseAccepted; // decision: accepted
+    mapping(uint256 => mapping(address => bool)) public raiseDeclined; // decision: declined
+    mapping(uint256 => mapping(address => bool)) public raiseMatched;  // tx outcome: confirmed
+    mapping(uint256 => mapping(address => bool)) public raiseTxFailed; // tx outcome: failed
+    mapping(uint256 => uint256) public aliveCount;
+
+    uint256 public treasury;
+    address[] public entrants;                            // addresses entered since the last treasury draw
+    mapping(address => bool) public enteredThisPeriod;
+    uint256 public lastDrawBlock;                         // block of the most recent treasury draw
+
+    event Joined(uint256 indexed gameId, address player);
+    event GameStarted(uint256 indexed gameId, uint256 seedBlock, uint256 seed);
+    event Eliminated(uint256 indexed gameId, address player, uint256 round);
+    event RaiseProposed(uint256 indexed gameId, address proposer, uint256 deadline);
+    event RaiseAccepted(uint256 indexed gameId, address player);
+    event RaiseDeclined(uint256 indexed gameId, address player);
+    event TxWindowOpened(uint256 indexed gameId, uint256 txDeadline);
+    event RaiseMatched(uint256 indexed gameId, address player);
+    event RaiseTxFailed(uint256 indexed gameId, address player);
+    event RaiseDropped(uint256 indexed gameId, address player);
+    event GameFinished(uint256 indexed gameId, address winner, Tier tier, uint256 paidOut, uint256 toTreasury);
+    event TreasuryDrawn(address winner, uint256 amount);
+
+    constructor(address sqkToken, address creatorAddress) {
+        sqk = IERC20(sqkToken);
+        creator = creatorAddress;
+        lastDrawBlock = block.number;
+    }
+
+    /// @notice Raise limit per game, by lobby size.
+    function maxRaisesFor(uint8 size) public pure returns (uint8) {
+        return size == 4 ? 1 : (size == 9 ? 2 : 3);
+    }
+
+    /// @dev True once every alive player has a recorded decision for the
+    ///      open raise — accepted or declined. This is what lets the
+    ///      30-second decision window end early.
+    function _allDecided(uint256 gameId) internal view returns (bool) {
+        address[] storage ps = players[gameId];
+        for (uint256 i = 0; i < ps.length; i++) {
+            address p = ps[i];
+            if (alive[gameId][p] && !raiseAccepted[gameId][p] && !raiseDeclined[gameId][p]) return false;
+        }
+        return true;
+    }
+
+    /// @dev True once every accepted player has a recorded transaction
+    ///      outcome — confirmed or failed. This is what lets the
+    ///      60-second transaction window end early.
+    function _allTxSettled(uint256 gameId) internal view returns (bool) {
+        address[] storage ps = players[gameId];
+        for (uint256 i = 0; i < ps.length; i++) {
+            address p = ps[i];
+            if (alive[gameId][p] && raiseAccepted[gameId][p] && !raiseMatched[gameId][p] && !raiseTxFailed[gameId][p]) return false;
+        }
+        return true;
+    }
+
+    /// @notice Create a lobby. Only square sizes can ever exist.
+    function createGame(uint8 size) external returns (uint256 gameId) {
+        require(size == 4 || size == 9 || size == 16, "lobby must be 4, 9 or 16");
+        gameId = nextGameId++;
+        games[gameId].size = size;
+        games[gameId].maxRaises = maxRaisesFor(size);
+        games[gameId].phase = Phase.Filling;
+    }
+
+    /// @notice Join: the player first approves this contract for 20 SQK in their
+    ///         wallet, then this call records the entry transaction.
+    ///         18 SQK stays here as prize, 2 SQK goes to the creator.
+    function joinLobby(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.Filling, "game not filling");
+        require(!_contains(gameId, msg.sender), "already entered");
+        require(players[gameId].length < g.size, "lobby full");
+
+        require(sqk.transferFrom(msg.sender, address(this), ENTRY), "entry transfer failed");
+        require(sqk.transfer(creator, FEE), "fee transfer failed");
+        g.pot += TO_PRIZE;
+
+        players[gameId].push(msg.sender);
+        alive[gameId][msg.sender] = true;
+        aliveCount[gameId]++;
+        if (!enteredThisPeriod[msg.sender]) {
+            enteredThisPeriod[msg.sender] = true;
+            entrants.push(msg.sender);
+        }
+        emit Joined(gameId, msg.sender);
+
+        if (players[gameId].length == g.size) _start(gameId);
+    }
+
+    /// @dev The tier is decided here, from the block produced at game start,
+    ///      by the published formula. It cannot be changed afterwards.
+    function _start(uint256 gameId) internal {
+        Game storage g = games[gameId];
+        g.phase = Phase.Playing;
+        g.seedBlock = block.number;
+        g.seed = (block.number * 2654435761 + 97) % 100;
+        g.tier = g.seed < 50 ? Tier.Full : (g.seed < 80 ? Tier.Half : Tier.Empty);
+        g.spinReadyAt = block.timestamp + SPIN_TIME;
+        emit GameStarted(gameId, g.seedBlock, g.seed);
+    }
+
+    /// @notice After the 10-second spin, eliminate one random alive address.
+    ///         The pick is a plain random draw among the entered addresses.
+    function spinAndEliminate(uint256 gameId, uint256 round) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.Playing, "not playing");
+        require(block.timestamp >= g.spinReadyAt, "wheel still spinning");
+        require(aliveCount[gameId] > 1, "one survivor left");
+
+        uint256 roll = uint256(keccak256(abi.encodePacked(
+            blockhash(block.number - 1), gameId, round, g.seed))) % aliveCount[gameId];
+        address loser = _nthAlive(gameId, roll);
+        alive[gameId][loser] = false;
+        aliveCount[gameId]--;
+        emit Eliminated(gameId, loser, round);
+
+        if (aliveCount[gameId] == 1) _finish(gameId);
+        else g.spinReadyAt = block.timestamp + SPIN_TIME;
+    }
+
+    /// @notice Any survivor can propose a raise — always exactly the entry
+    ///         amount (20 SQK). The per-game limit depends on the lobby:
+    ///         1 raise for 4 players, 2 for 9, 3 for 16. Proposing counts
+    ///         as accepting; nobody pays anything yet.
+    function proposeRaise(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.Playing, "not playing");
+        require(alive[gameId][msg.sender], "only survivors can propose");
+        require(g.raisesUsed < g.maxRaises, "raise limit reached");
+        g.phase = Phase.RaiseOpen;
+        g.raisesUsed++;
+        g.raiseProposer = msg.sender;
+        g.raiseDeadline = block.timestamp + RAISE_TIME; // 30s, decide only
+        raiseAccepted[gameId][msg.sender] = true;
+        emit RaiseProposed(gameId, msg.sender, g.raiseDeadline);
+    }
+
+    /// @notice During the 30-second decision window, accept the raise.
+    ///         This moves no tokens — payment happens in the tx window.
+    ///         To decline instead, call declineRaise; staying silent also
+    ///         counts as a decline once the deadline passes.
+    function acceptRaise(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.RaiseOpen, "no raise open");
+        require(block.timestamp <= g.raiseDeadline, "decision window closed");
+        require(alive[gameId][msg.sender], "not in game");
+        require(!raiseAccepted[gameId][msg.sender], "already accepted");
+        require(!raiseDeclined[gameId][msg.sender], "already declined");
+        raiseAccepted[gameId][msg.sender] = true;
+        emit RaiseAccepted(gameId, msg.sender);
+    }
+
+    /// @notice During the 30-second decision window, decline the raise.
+    ///         This records the decision on-chain, so once every alive
+    ///         player has accepted or declined, openTxWindow can close
+    ///         the window early instead of waiting out the 30 seconds.
+    ///         Declining eliminates you when the window is settled.
+    function declineRaise(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.RaiseOpen, "no raise open");
+        require(block.timestamp <= g.raiseDeadline, "decision window closed");
+        require(alive[gameId][msg.sender], "not in game");
+        require(!raiseAccepted[gameId][msg.sender], "already accepted");
+        require(!raiseDeclined[gameId][msg.sender], "already declined");
+        raiseDeclined[gameId][msg.sender] = true;
+        emit RaiseDeclined(gameId, msg.sender);
+    }
+
+    /// @notice Open the transaction window: everyone who did not accept —
+    ///         declined on-chain, or stayed silent — is eliminated, and the
+    ///         acceptors get a separate 60 seconds to pay on-chain. Callable
+    ///         as soon as every alive player has a recorded decision,
+    ///         accepted or declined (the decision timer ends early), or
+    ///         after the 30s deadline.
+    function openTxWindow(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.RaiseOpen, "no raise open");
+        require(block.timestamp > g.raiseDeadline || _allDecided(gameId), "decision window still open");
+        address[] storage ps = players[gameId];
+        for (uint256 i = 0; i < ps.length; i++) {
+            address p = ps[i];
+            if (alive[gameId][p] && !raiseAccepted[gameId][p]) {
+                alive[gameId][p] = false;
+                aliveCount[gameId]--;
+                emit RaiseDropped(gameId, p);
+            }
+        }
+        if (aliveCount[gameId] <= 1) { _finish(gameId); return; }
+        g.phase = Phase.RaiseTx;
+        g.txDeadline = block.timestamp + TX_TIME; // 60s: submit + confirm
+        emit TxWindowOpened(gameId, g.txDeadline);
+    }
+
+    /// @notice During the 60-second transaction window, an acceptor pays
+    ///         the +20 SQK raise. The transfer landing in this window is
+    ///         the confirmation the contract records for that player.
+    function confirmRaiseTx(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.RaiseTx, "no tx window open");
+        require(block.timestamp <= g.txDeadline, "tx window closed");
+        require(alive[gameId][msg.sender], "not in game");
+        require(raiseAccepted[gameId][msg.sender], "did not accept the raise");
+        require(!raiseMatched[gameId][msg.sender], "tx already confirmed");
+        require(!raiseTxFailed[gameId][msg.sender], "tx already marked failed");
+        require(sqk.transferFrom(msg.sender, address(this), ENTRY), "raise transfer failed");
+        require(sqk.transfer(creator, FEE), "fee transfer failed");
+        g.pot += TO_PRIZE;
+        raiseMatched[gameId][msg.sender] = true;
+        emit RaiseMatched(gameId, msg.sender);
+    }
+
+    /// @notice During the 60-second transaction window, record that an
+    ///         acceptor's raise transaction failed — the wallet rejected
+    ///         it, it reverted, or it ran out of gas. This gives that
+    ///         player a recorded outcome, so once every accepted
+    ///         transaction is confirmed or failed, settleRaise can close
+    ///         the window early instead of waiting out the 60 seconds.
+    ///         A failed transaction eliminates you when the window settles.
+    function markRaiseTxFailed(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.RaiseTx, "no tx window open");
+        require(block.timestamp <= g.txDeadline, "tx window closed");
+        require(alive[gameId][msg.sender], "not in game");
+        require(raiseAccepted[gameId][msg.sender], "did not accept the raise");
+        require(!raiseMatched[gameId][msg.sender], "tx already confirmed");
+        require(!raiseTxFailed[gameId][msg.sender], "tx failure already recorded");
+        raiseTxFailed[gameId][msg.sender] = true;
+        emit RaiseTxFailed(gameId, msg.sender);
+    }
+
+    /// @notice Settle the transaction window: everyone whose transaction
+    ///         did not confirm — failed, or never submitted — is eliminated
+    ///         on this tile. Callable as soon as every accepted transaction
+    ///         has a recorded outcome, confirmed or failed (the 60-second
+    ///         timer ends early), or after the 60 seconds are up.
+    function settleRaise(uint256 gameId) external {
+        Game storage g = games[gameId];
+        require(g.phase == Phase.RaiseTx, "no tx window open");
+        require(block.timestamp > g.txDeadline || _allTxSettled(gameId), "tx window still open");
+        address[] storage ps = players[gameId];
+        for (uint256 i = 0; i < ps.length; i++) {
+            address p = ps[i];
+            if (alive[gameId][p] && !raiseMatched[gameId][p]) {
+                alive[gameId][p] = false;
+                aliveCount[gameId]--;
+                emit RaiseDropped(gameId, p);
+            }
+            raiseAccepted[gameId][p] = false;
+            raiseDeclined[gameId][p] = false;
+            raiseMatched[gameId][p] = false;
+            raiseTxFailed[gameId][p] = false;
+        }
+        g.phase = Phase.Playing;
+        g.spinReadyAt = block.timestamp + SPIN_TIME;
+        if (aliveCount[gameId] == 1) _finish(gameId);
+    }
+
+    function _finish(uint256 gameId) internal {
+        Game storage g = games[gameId];
+        g.phase = Phase.Finished;
+        g.winner = _nthAlive(gameId, 0);
+        uint256 pot = g.pot;
+        g.pot = 0;
+        uint256 toWinner = g.tier == Tier.Full ? pot : (g.tier == Tier.Half ? pot / 2 : 0);
+        uint256 toTreasury = pot - toWinner;
+        if (toWinner > 0) require(sqk.transfer(g.winner, toWinner), "payout failed");
+        treasury += toTreasury;
+        emit GameFinished(gameId, g.winner, g.tier, toWinner, toTreasury);
+    }
+
+    /// @notice Treasury draw: callable by anyone once DRAW_INTERVAL blocks
+    ///         (1,800 blocks, about 6 hours at ~12 seconds per block) have
+    ///         passed since the last draw. The whole treasury is raffled
+    ///         among all addresses that entered a game before this draw
+    ///         block and airdropped to one winner by transfer.
+    function treasuryDraw() external {
+        require(block.number >= lastDrawBlock + DRAW_INTERVAL, "draw not due yet");
+        require(treasury > 0, "treasury empty");
+        require(entrants.length > 0, "no entrants this period");
+        uint256 roll = uint256(keccak256(abi.encodePacked(
+            blockhash(block.number - 1), treasury, lastDrawBlock))) % entrants.length;
+        address winner = entrants[roll];
+        uint256 amount = treasury;
+        treasury = 0;
+        lastDrawBlock = block.number;
+        for (uint256 i = 0; i < entrants.length; i++) enteredThisPeriod[entrants[i]] = false;
+        delete entrants;
+        require(sqk.transfer(winner, amount), "airdrop failed");
+        emit TreasuryDrawn(winner, amount);
+    }
+
+    // --- helpers -------------------------------------------------------------
+    function _contains(uint256 gameId, address a) internal view returns (bool) {
+        address[] storage ps = players[gameId];
+        for (uint256 i = 0; i < ps.length; i++) if (ps[i] == a) return true;
+        return false;
+    }
+
+    function _nthAlive(uint256 gameId, uint256 n) internal view returns (address) {
+        address[] storage ps = players[gameId];
+        uint256 seen = 0;
+        for (uint256 i = 0; i < ps.length; i++) {
+            if (alive[gameId][ps[i]]) {
+                if (seen == n) return ps[i];
+                seen++;
+            }
+        }
+        revert("no such alive player");
+    }
+}
+</script>
+
+    <script>
+    "use strict";
+    /* ================= Squeek Tiles — practice-mode game engine =================
+       Mirrors SqueekTiles.sol rule-for-rule, with an in-page demo ledger.
+       No storage, no server: everything lives for this session only.          */
+
+    var ENTRY = 20, TO_PRIZE = 18, FEE = 2;
+    var SPIN_MS = 10000, RAISE_MS = 30000, TX_MS = 60000;
+    var DRAW_INTERVAL = 1800; // blocks between treasury draws (~12s/block on Sepolia = ~6 hours)
+    var LOBBIES = [
+      { size: 4,  cols: 2, name: "QUICK 4",   maxRaises: 1, sub: "2 × 2 board · pot starts at 72 SQK · max 1 raise" },
+      { size: 9,  cols: 3, name: "CLASSIC 9", maxRaises: 2, sub: "3 × 3 board · pot starts at 162 SQK · max 2 raises" },
+      { size: 16, cols: 4, name: "BIG 16",    maxRaises: 3, sub: "4 × 4 board · pot starts at 288 SQK · max 3 raises" }
+    ];
+
+    function $(id){ return document.getElementById(id); }
+    function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+    function fmt(n){ return n.toLocaleString("en-US"); }
+
+    /* ---------- deterministic RNG (mulberry32) ---------- */
+    function rng(seed){
+      var a = seed >>> 0;
+      return function(){
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        var t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function hashStr(s){
+      var h = 2166136261;
+      for (var i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return h >>> 0;
+    }
+    function randAddr(rand){
+      var hex = "0123456789abcdef", out = "0x";
+      for (var i = 0; i < 40; i++) out += hex[Math.floor(rand() * 16)];
+      return out;
+    }
+    function shortAddr(a){ return a.slice(0, 6) + "…" + a.slice(-4); }
+
+    /* ---------- pixel hamster (SVG, generated from a pixel map) ---------- */
+    var HAM_MAP = [
+      "..OOO........OOO..",
+      ".OFFFO......OFFFO.",
+      "OFPPFFO....OFFPPFO",
+      "OFPPFOOOOOOOOFPPFO",
+      "OOFFFFFFFFFFFFFFOO",
+      "OFFFFFFFFFFFFFFFFO",
+      "OFFEEFFFFFFFFEEFFO",
+      "OFFEEFFFFFFFFEEFFO",
+      "OFFFFFFFFFFFFFFFFO",
+      "OFFPPFFFDDFFFPPFFO",
+      ".OFFFLLLDDLLLFFFO.",
+      ".OFFFFLLLLLFFFFOO.",
+      "..OFFFLLLLLFFFOFO.",
+      "..OFFFLLLLLFFFO...",
+      ".OPOFFOOOOOFPOPO..",
+      "...OO........OO..."
+    ];
+    var FURS = ["#e8a04c", "#d97f36", "#f0c078", "#b8b0a4", "#8a5a34", "#e5d3b3", "#c96f4a", "#9db4c8"];
+    var HATS = ["#f5b942", "#2dd4bf", "#a78bfa", "#f87171", null, null];
+    function hamsterSVG(fur, hat){
+      var P = { O:"#241a2e", P:"#f49ac1", F:fur, E:"#241a2e", W:"#fff6ea", D:"#e75480", L:"#fff1d6" };
+      var px = 10, w = HAM_MAP[0].length * px, h = HAM_MAP.length * px, rects = "";
+      for (var y = 0; y < HAM_MAP.length; y++){
+        var row = HAM_MAP[y];
+        for (var x = 0; x < row.length; x++){
+          var c = row[x];
+          if (c === "." ) continue;
+          rects += '<rect x="' + (x * px) + '" y="' + (y * px) + '" width="' + px + '" height="' + px + '" fill="' + P[c] + '"/>';
+        }
+      }
+      if (hat){
+        rects += '<rect x="65" y="20" width="50" height="10" fill="' + hat + '"/>' +
+                 '<rect x="55" y="30" width="70" height="10" fill="' + hat + '"/>';
+      }
+      return '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Hamster tile">' + rects + "</svg>";
+    }
+    /* Laughing hamster variant — squeezed-shut eyes, wide open mouth, tear
+       drops. Used only by the EMPTY winner popup to tease the winner. */
+    var LAUGH_MAP = [
+      "..OOO........OOO..",
+      ".OFFFO......OFFFO.",
+      "OFPPFFO....OFFPPFO",
+      "OFPPFOOOOOOOOFPPFO",
+      "OOFFFFFFFFFFFFFFOO",
+      "OFFFFFFFFFFFFFFFFO",
+      "OFEEEFFFFFFFFEEEFO",
+      "OFFFFFFFFFFFFFFFFO",
+      "OFFPPFFFFFFFFPPFFO",
+      ".OFFFDDDDDDDDFFFO.",
+      ".OFFFFDDDDDDFFFFO..",
+      "..OFFFDDDDDDFFFO..",
+      "..OFFFPPPPPPFFFO..",
+      "..OFFFLLLLLFFFO...",
+      ".OPOFFOOOOOFPOPO..",
+      "...OO........OO..."
+    ];
+    function laughingHamsterSVG(fur){
+      var P = { O:"#241a2e", P:"#f49ac1", F:fur || "#e8a04c", E:"#241a2e", D:"#8e2434", L:"#fff1d6" };
+      var px = 10, w = LAUGH_MAP[0].length * px, h = LAUGH_MAP.length * px, rects = "";
+      for (var y = 0; y < LAUGH_MAP.length; y++){
+        var row = LAUGH_MAP[y];
+        for (var x = 0; x < row.length; x++){
+          var c = row[x];
+          if (c === ".") continue;
+          rects += '<rect x="' + (x * px) + '" y="' + (y * px) + '" width="' + px + '" height="' + px + '" fill="' + P[c] + '"/>';
+        }
+      }
+      // laugh tears flying off both cheeks
+      rects += '<rect x="0" y="70" width="10" height="10" fill="#38bdf8"/>' +
+               '<rect x="10" y="90" width="10" height="10" fill="#38bdf8"/>' +
+               '<rect x="170" y="70" width="10" height="10" fill="#38bdf8"/>' +
+               '<rect x="160" y="90" width="10" height="10" fill="#38bdf8"/>';
+      return '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="Laughing hamster">' + rects + "</svg>" +
+        '<span class="ha-bubble h1" aria-hidden="true">HA!</span>' +
+        '<span class="ha-bubble h2" aria-hidden="true">HA HA!</span>' +
+        '<span class="ha-bubble h3" aria-hidden="true">hee hee!</span>';
+    }
+    function wheelSVG(){
+      var spokes = "";
+      for (var i = 0; i < 6; i++){
+        var a = i * Math.PI / 3, x = 50 + 34 * Math.cos(a), y = 50 + 34 * Math.sin(a);
+        spokes += '<line x1="50" y1="50" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="#a78bfa" stroke-width="4"/>';
+      }
+      return '<svg viewBox="0 0 100 100" role="img" aria-label="Hamster wheel">' +
+        '<circle cx="50" cy="50" r="44" fill="none" stroke="#f5b942" stroke-width="9"/>' +
+        '<circle cx="50" cy="50" r="35" fill="none" stroke="#8a6414" stroke-width="2"/>' +
+        spokes + '<circle cx="50" cy="50" r="7" fill="#f5b942" stroke="#241a2e" stroke-width="2"/>' +
+        '<circle cx="42" cy="59" r="3.4" fill="#e8a04c" stroke="#241a2e" stroke-width="1.6"/><circle cx="58" cy="59" r="3.4" fill="#e8a04c" stroke="#241a2e" stroke-width="1.6"/>' +
+        '<circle cx="42" cy="59" r="1.6" fill="#f49ac1"/><circle cx="58" cy="59" r="1.6" fill="#f49ac1"/>' +
+        '<circle cx="50" cy="67" r="9" fill="#e8a04c" stroke="#241a2e" stroke-width="2"/>' +
+        '<circle cx="44.5" cy="69" r="2" fill="#f49ac1"/><circle cx="55.5" cy="69" r="2" fill="#f49ac1"/>' +
+        '<circle cx="47" cy="65" r="1.8" fill="#241a2e"/><circle cx="53" cy="65" r="1.8" fill="#241a2e"/><circle cx="50" cy="68" r="1.4" fill="#e75480"/></svg>';
+    }
+    $("wheelWrap").innerHTML = wheelSVG();
+
+    /* ---------- live Squeekchain block feed (with honest fallback) ---------- */
+    var chain = { height: 0, live: false };
+    function seedForBlock(b){ return Number((BigInt(b) * 2654435761n + 97n) % 100n); }
+    function tierForSeed(s){ return s < 50 ? "FULL" : (s < 80 ? "HALF" : "EMPTY"); }
+    function renderBlock(){
+      $("blockHeight").textContent = chain.height ? "#" + fmt(chain.height) : "…";
+      $("blockSource").textContent = chain.live ? "live from api.squeekchain.com" : "simulated feed — live API unreachable from here";
+    }
+    function pollChain(){
+      fetch("https://api.squeekchain.com/v1/status")
+        .then(function(r){ if (!r.ok) throw new Error("bad status"); return r.json(); })
+        .then(function(d){
+          var h = d && (d.blockHeight || (d.data && d.data.blockHeight));
+          if (typeof h === "number" && h > 0){ chain.height = h; chain.live = true; }
+          else if (!chain.height){ chain.height = 128400 + Math.floor(Math.random() * 900); }
+          renderBlock();
+        })
+        .catch(function(){
+          if (!chain.height) chain.height = 128400 + Math.floor(Math.random() * 900);
+          renderBlock();
+        });
+    }
+    chain.height = 128400 + Math.floor(Math.random() * 900);
+    renderBlock();
+    pollChain();
+    setInterval(function(){
+      if (chain.live) pollChain();
+      else { chain.height += 1; renderBlock(); try { renderDay(); } catch (e) {} }
+    }, 12000);
+
+    /* ---------- wallet (real if injected, otherwise simulated) ---------- */
+    var wallet = { connected: false, address: null, balance: 0, real: false };
+    $("connectBtn").addEventListener("click", function(){
+      if (window.ethereum && window.ethereum.request){
+        window.ethereum.request({ method: "eth_requestAccounts" })
+          .then(function(accs){
+            if (accs && accs.length) setWallet(accs[0], true);
+          })
+          .catch(function(){ setWallet(null, false); });
+      } else {
+        setWallet(null, false);
+      }
+    });
+    function setWallet(addr, real){
+      var r = rng(Date.now() & 0xffffff);
+      wallet.address = addr || randAddr(r);
+      wallet.real = !!real;
+      wallet.connected = true;
+      if (!wallet.balance) wallet.balance = 1000;
+      $("walletDot").classList.add("on");
+      $("walletAddr").textContent = shortAddr(wallet.address);
+      $("walletNet").textContent = (real ? "Wallet connected" : "Simulated wallet (no extension found)") +
+        " · Sepolia testnet · SQK token · Practice demo ledger";
+      $("connectBtn").textContent = "Wallet connected ✓";
+      $("connectBtn").disabled = true;
+      $("faucetBtn").classList.remove("hidden");
+      renderBalance(); updateJoinBtn();
+      logLine("Wallet connected: <span class='mono'>" + wallet.address + "</span> with <b>1,000 practice SQK</b>.", "good");
+    }
+    $("faucetBtn").addEventListener("click", function(){
+      wallet.balance += 1000; renderBalance(); updateJoinBtn();
+      logLine("Faucet: +1,000 practice SQK.", "gold");
+    });
+    function renderBalance(){ $("walletBal").textContent = fmt(wallet.balance); }
+
+    /* ---------- global day state ---------- */
+    var day = { treasury: 0, creatorFees: 0, entrants: {}, entrantList: [], games: 0, draws: [], nextDrawBlock: chain.height, lastDrawBlock: chain.height - DRAW_INTERVAL };
+    function renderDay(){
+      $("treasuryBal").textContent = fmt(day.treasury);
+      $("creatorFees").textContent = fmt(day.creatorFees);
+      $("entrantsToday").textContent = day.entrantList.length;
+      $("gamesToday").textContent = day.games;
+      var nb = $("nextDrawBlock"), bb = $("blocksToDraw");
+      if (nb) nb.textContent = "#" + fmt(day.nextDrawBlock);
+      if (bb){
+        var left = day.nextDrawBlock - chain.height;
+        if (left <= 0) bb.textContent = "Due now — anyone can run it";
+        else {
+          var mins = Math.round(left * 12 / 60);
+          bb.textContent = fmt(left) + " blocks (≈ " + (mins >= 90 ? (mins / 60).toFixed(1) + " h" : mins + " min") + ")";
+        }
+      }
+      $("drawBtn").disabled = !(day.treasury > 0 && day.entrantList.length > 0 && chain.height >= day.nextDrawBlock && !game.running);
+    }
+    function registerEntrant(addr){
+      if (!day.entrants[addr]){ day.entrants[addr] = true; day.entrantList.push(addr); }
+    }
+
+    /* ---------- log ---------- */
+    function logLine(html, cls){
+      var el = $("gameLog");
+      var d = document.createElement("div");
+      d.innerHTML = "<span class='lt'>▸</span> " + (cls ? "<span class='" + cls + "'>" + html + "</span>" : html);
+      el.appendChild(d);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    /* ---------- lobby picker ---------- */
+    var selectedLobby = LOBBIES[1];
+    (function buildLobbies(){
+      var box = $("lobbies");
+      LOBBIES.forEach(function(l){
+        var b = document.createElement("button");
+        b.className = "lobby" + (l === selectedLobby ? " sel" : "");
+        var cells = "";
+        for (var i = 0; i < l.size; i++) cells += "<i></i>";
+        b.innerHTML = '<span class="mini-grid" style="grid-template-columns:repeat(' + l.cols + ',9px)">' + cells + "</span>" +
+          '<span><span class="l-name">' + l.name + '</span><div class="l-sub">' + l.sub + " · " + l.size + " players</div></span>";
+        b.addEventListener("click", function(){
+          if (game.running && game.userAlive) return;
+          selectedLobby = l;
+          Array.prototype.forEach.call(box.children, function(c){ c.classList.remove("sel"); });
+          b.classList.add("sel");
+          updateJoinBtn();
+        });
+        box.appendChild(b);
+      });
+    })();
+    function updateJoinBtn(){
+      var btn = $("joinBtn");
+      if (!game.running) $("barPlayers").textContent = "— / " + selectedLobby.size;
+      // Still in the game yourself: the button stays locked.
+      // Eliminated but the game is still running (spectating): the button
+      // comes back to life as "leave this game and join a new one".
+      if (game.running && game.userAlive){ btn.disabled = true; btn.textContent = "Game in progress…"; return; }
+      if (!wallet.connected){ btn.disabled = true; btn.textContent = "Connect wallet to play"; return; }
+      if (wallet.balance < ENTRY){ btn.disabled = true; btn.textContent = "Not enough SQK — use the faucet"; return; }
+      btn.disabled = false;
+      btn.textContent = game.running
+        ? "Leave this game & join " + selectedLobby.name + " — " + ENTRY + " SQK"
+        : "Join " + selectedLobby.name + " lobby — " + ENTRY + " SQK";
+    }
+
+    /* ---------- game state ---------- */
+    var game = {
+      running: false, id: 0, players: [], pot: 0, seedBlock: 0, seed: 0, tier: null,
+      round: 0, raisesUsed: 0, maxRaises: 3, phase: "idle", userAlive: true
+    };
+    function alivePlayers(){ return game.players.filter(function(p){ return p.alive; }); }
+    function userPlayer(){ return game.players.filter(function(p){ return p.you; })[0]; }
+    /* Spectating = a game is running but your own tile is already out.
+       Spectators can watch the rest of the game AND leave for a new one. */
+    function isSpectating(){ return !!(game.running && !game.userAlive); }
+    function refreshSpectatorUI(){
+      $("spectatorBar").classList.toggle("hidden", !isSpectating());
+    }
+    /* Leave a game you are only spectating: cancel its round loop, close
+       any raise UI, and reset the table so a new game can start at once.
+       The gid bump makes every pending timer/timeout of the old game
+       (spin, raise decision, raise tx, bot moves) bail out harmlessly. */
+    function abandonGame(){
+      if (!game.running) return;
+      if (game.token) game.token.cancelled = true;
+      game.id++;
+      game.running = false;
+      game.phase = "idle";
+      raiseState = null;
+      closeRaiseModal();
+      closeWinnerModal();
+      $("raisePanel").classList.add("hidden");
+      $("timerBar").classList.add("hidden");
+      setProposeVisible(false);
+      refreshSpectatorUI();
+      renderDay();
+      logLine("You left the game you were spectating — that game stops here (practice mode simulates the other tiles locally, so there is no game left to watch without you).", "bad");
+    }
+
+    $("joinBtn").addEventListener("click", function(){ startGame(selectedLobby); });
+
+    function startGame(lobby){
+      if (game.running && game.userAlive) return;
+      // Spectating a game you are already out of: leave it cleanly first,
+      // then fall through and start the new game.
+      if (game.running) abandonGame();
+      if (!wallet.connected || wallet.balance < ENTRY) return;
+      game.id++;
+      var gid = game.id;
+      var seedBlock = chain.height || (128400 + Math.floor(Math.random() * 900));
+      var seed = seedForBlock(seedBlock);
+      var rand = rng(hashStr("game" + gid + ":" + seedBlock + ":" + Date.now()));
+      game.players = [];
+      game.pot = 0; game.seedBlock = seedBlock; game.seed = seed;
+      game.tier = tierForSeed(seed); game.round = 0; game.raisesUsed = 0; game.maxRaises = lobby.maxRaises;
+      game.phase = "playing"; game.running = true; game.userAlive = true;
+      game.lobbySize = lobby.size; game.lobbyName = lobby.name;
+
+      payEntry(userPlayer0(wallet.address));
+      for (var i = 1; i < lobby.size; i++){
+        var addr = randAddr(rand);
+        game.players.push({
+          addr: addr, you: false, alive: true,
+          fur: FURS[Math.floor(rand() * FURS.length)],
+          hat: HATS[Math.floor(rand() * HATS.length)]
+        });
+        game.pot += TO_PRIZE;      // every entry puts 18 SQK in the final tile…
+        day.creatorFees += FEE;    // …and pays the 2 SQK creator fee
+      }
+      // shuffle tile positions so "you" are not always tile #1
+      for (var s = game.players.length - 1; s > 0; s--){
+        var j = Math.floor(rand() * (s + 1)), tmp = game.players[s];
+        game.players[s] = game.players[j]; game.players[j] = tmp;
+      }
+      game.players.forEach(function(p){ registerEntrant(p.addr); });
+      day.games++;
+      renderDay(); renderBoard(lobby); renderPot("Game #" + gid + " · " + lobby.name + " · seed locked at block #" + fmt(seedBlock));
+      closeRaiseModal();
+      $("seedBlock").textContent = "#" + fmt(seedBlock);
+      $("seedValue").textContent = seed + " → " + game.tier;
+      var badge = $("tierBadge");
+      badge.textContent = "TIER LOCKED: " + game.tier + (game.tier === "FULL" ? " — winner takes all" : game.tier === "HALF" ? " — half to treasury" : " — all to treasury");
+      badge.className = "tier-badge " + game.tier.toLowerCase();
+      $("roundLabel").textContent = "GAME #" + gid + " — " + lobby.name;
+      updateAliveLabel(); updateJoinBtn(); setProposeVisible(false);
+      $("joinHint").textContent = "Game running. The wheel is about to spin…";
+      logLine("Game #" + gid + " started: <b>" + lobby.size + " players</b> × 20 SQK. Pot <b>" + game.pot + " SQK</b>, creator fees " + (lobby.size * FEE) + " SQK. Raise limit for this lobby: <b>" + game.maxRaises + "</b>.", "gold");
+      logLine("Final tile sealed by block <b>#" + fmt(seedBlock) + "</b>: seed " + seed + " → tier <b>" + game.tier + "</b> (formula fixed before play).", "purp");
+      runRounds(gid);
+    }
+    function userPlayer0(addr){
+      return { addr: addr, you: true, alive: true, fur: "#e8a04c", hat: "#f5b942" };
+    }
+    function payEntry(p){
+      game.players.push(p);
+      game.pot += TO_PRIZE;
+      day.creatorFees += FEE;
+      if (p.you){ wallet.balance -= ENTRY; renderBalance(); }
+    }
+
+    /* ---------- board rendering ---------- */
+    function renderBoard(lobby){
+      var cols = lobby ? lobby.cols : Math.round(Math.sqrt(game.players.length));
+      var area = $("boardArea");
+      var grid = document.createElement("div");
+      grid.className = "grid g" + cols;
+      grid.id = "tileGrid";
+      game.players.forEach(function(p, idx){
+        var t = document.createElement("div");
+        t.className = "tile" + (p.you ? " you" : "");
+        t.id = "tile-" + idx;
+        t.innerHTML = hamsterSVG(p.fur, p.hat) +
+          '<div class="t-addr">' + shortAddr(p.addr) + "</div>" +
+          '<div class="t-tag">' + (p.you ? "★ You" : "Player") + " · Tile " + (idx + 1) + "</div>";
+        grid.appendChild(t);
+      });
+      area.innerHTML = "";
+      area.appendChild(grid);
+    }
+    function renderPot(sub){
+      $("potAmount").textContent = fmt(game.pot);
+      $("barPot").textContent = fmt(game.pot);
+      if (sub) $("potSub").textContent = sub;
+    }
+    function updateAliveLabel(){
+      $("aliveLabel").textContent = alivePlayers().length + " of " + game.players.length + " tiles alive · raises used " + game.raisesUsed + "/" + game.maxRaises;
+      $("barPlayers").textContent = alivePlayers().length + " alive / " + game.players.length + " players";
+      // Elimination points all funnel through here: if your tile just
+      // dropped while the game goes on, you are spectating now — show the
+      // spectator bar and re-enable the Join button for a new game.
+      refreshSpectatorUI();
+      updateJoinBtn();
+    }
+    function markDead(p){
+      var idx = game.players.indexOf(p);
+      var t = $("tile-" + idx);
+      if (t){ t.classList.add("dead"); t.querySelector(".t-tag").textContent = "Eliminated · Round " + game.round; }
+    }
+    function setWheel(status, sub, spinning){
+      $("wheelStatus").textContent = status;
+      if (sub !== null) $("wheelSub").textContent = sub;
+      $("wheelWrap").classList.toggle("spinning", !!spinning);
+    }
+    function setProposeVisible(v){ $("proposeBtn").classList.toggle("hidden", !v); }
+    /* Counts down ms; resolves true if earlyCheck() ended it early —
+       e.g. every player has decided, or every transaction has settled. */
+    function countdown(ms, fillEl, countEl, earlyCheck){
+      var fills = fillEl ? (Array.isArray(fillEl) ? fillEl : [fillEl]) : [];
+      var counts = countEl ? (Array.isArray(countEl) ? countEl : [countEl]) : [];
+      function setFills(w){ fills.forEach(function(f){ f.style.width = w; }); }
+      function setCounts(html){ counts.forEach(function(c){ c.innerHTML = html; }); }
+      return new Promise(function(resolve){
+        var t0 = Date.now(), ticks = 0;
+        setFills("100%");
+        setCounts('<span class="count-num">' + Math.ceil(ms / 1000) + "</span>");
+        var iv = setInterval(function(){
+          ticks++;
+          if (typeof earlyCheck === "function" && earlyCheck()){ clearInterval(iv); setFills("0%"); setCounts(""); resolve(true); return; }
+          var left = ms - Math.max(Date.now() - t0, ticks * 100);
+          if (left <= 0){ clearInterval(iv); setFills("0%"); setCounts(""); resolve(false); return; }
+          setFills((left / ms * 100) + "%");
+          setCounts('<span class="count-num">' + Math.ceil(left / 1000) + "</span>");
+        }, 100);
+      });
+    }
+
+    /* ---------- rounds ---------- */
+    async function runRounds(gid){
+      var token = { cancelled: false };
+      game.token = token;
+      while (game.running && gid === game.id && alivePlayers().length > 1){
+        game.round++;
+        var alive = alivePlayers();
+        /* --- spin phase --- */
+        game.phase = "spinning";
+        setWheel("THE HAMSTER IS RUNNING…", "Round " + game.round + " — the wheel spins for 10 seconds, then one of the " + alive.length + " remaining addresses is eliminated at random.", true);
+        $("timerBar").classList.remove("hidden");
+        await countdown(SPIN_MS, $("timerFill"), $("wheelCount"), function(){ return token.cancelled || gid !== game.id; });
+        if (token.cancelled || gid !== game.id) return;
+        $("timerBar").classList.add("hidden");
+        setWheel("THE WHEEL STOPS!", null, false);
+
+        /* --- elimination: a plain random draw among the entered addresses --- */
+        var rollRand = rng(hashStr("elim:" + gid + ":" + game.round + ":" + game.seedBlock + ":" + Date.now()));
+        var loser = alive[Math.floor(rollRand() * alive.length)];
+        var lt = $("tile-" + game.players.indexOf(loser));
+        if (lt) lt.classList.add("target");
+        await sleep(game.userAlive ? 900 : 250);
+        if (lt) lt.classList.remove("target");
+        if (token.cancelled || gid !== game.id) return;
+        loser.alive = false;
+        markDead(loser);
+        if (loser.you){
+          game.userAlive = false;
+          logLine("<b>You were eliminated</b> in round " + game.round + ". You are spectating now: the remaining tiles play out at high speed if you want to watch — or use <b>Leave &amp; start a new game</b> above the board (the Join button works again too).", "bad");
+          setWheel("YOU ARE OUT — SPECTATING", "Your tile was eliminated in round " + game.round + ". Keep watching the rest of this game, or leave and start a new one — both options are open.", false);
+        } else {
+          logLine("Round " + game.round + ": tile eliminated — <span class='mono'>" + shortAddr(loser.addr) + "</span>. " + (alivePlayers().length) + " remain.", "bad");
+          setWheel("ONE TILE DROPS", shortAddr(loser.addr) + " was eliminated in round " + game.round + ". " + alivePlayers().length + " tiles remain.", false);
+        }
+        updateAliveLabel();
+        if (alivePlayers().length <= 1) break;
+
+        /* --- raise window between rounds --- */
+        if (game.raisesUsed < game.maxRaises && alivePlayers().length >= 2){
+          var proposed = false;
+          if (game.userAlive){
+            setProposeVisible(true);
+            game.proposeClicked = false;
+            var waits = 0;
+            while (waits < 22 && !game.proposeClicked && gid === game.id){ await sleep(120); waits++; }
+            setProposeVisible(false);
+            if (game.proposeClicked){ proposed = await runRaise(gid, userPlayer()); }
+            else if (Math.random() < 0.4){
+              var bots = alivePlayers().filter(function(p){ return !p.you; });
+              proposed = await runRaise(gid, bots[Math.floor(Math.random() * bots.length)]);
+            }
+          } else if (Math.random() < 0.35){
+            var bots2 = alivePlayers();
+            proposed = await runRaise(gid, bots2[Math.floor(Math.random() * bots2.length)]);
+          }
+          if (token.cancelled || gid !== game.id) return;
+          if (alivePlayers().length <= 1) break;
+        }
+        if (!game.userAlive) await sleep(350);
+      }
+      if (gid === game.id && game.running) finishGame(gid);
+    }
+    $("proposeBtn").addEventListener("click", function(){ game.proposeClicked = true; });
+    $("spectatorNewBtn").addEventListener("click", function(){
+      if (typeof appMode !== "undefined" && appMode === "real"){
+        $("spectatorBar").classList.add("hidden");
+        $("realPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      abandonGame();
+      updateJoinBtn();
+      if (wallet.connected && wallet.balance >= ENTRY) startGame(selectedLobby);
+      else window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    /* ---------- raises ---------- */
+    var raiseState = null;
+    /* The raise modal sits on top of everything and mirrors the raise panel:
+       same state, same buttons — it is the panel, just impossible to miss. */
+    function openRaiseModal(){
+      $("raiseModal").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    }
+    function closeRaiseModal(){
+      $("raiseModal").classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+    function showRaiseStep(step){
+      $("modalDecisionStep").classList.toggle("hidden", step !== "decision");
+      $("modalTxStep").classList.toggle("hidden", step !== "tx");
+    }
+    async function runRaise(gid, proposer){
+      game.phase = "raise";
+      game.raisesUsed++;
+      var alive = alivePlayers();
+      raiseState = { proposer: proposer, decisions: {}, tx: {}, phase: "decision", gid: gid };
+      raiseState.decisions[proposer.addr] = true; // proposing counts as accepting — payment happens later, in the tx window
+      $("txSection").classList.add("hidden");
+      $("raisePanel").classList.remove("hidden");
+      var raiseMsg = "<b>" + (proposer.you ? "You" : shortAddr(proposer.addr)) + "</b> proposed a raise (raise " + game.raisesUsed + " of " + game.maxRaises + "): everyone still alive has <b>30 seconds to accept or decline</b> the +20 SQK. This window is <b>only for deciding</b> — nobody pays yet, and it <b>ends the moment everyone has decided</b>. Declining, or not answering, eliminates you.";
+      $("raiseText").innerHTML = raiseMsg;
+      $("modalRaiseText").innerHTML = raiseMsg;
+      var needUser = !proposer.you && userPlayer() && userPlayer().alive;
+      $("raiseAcceptBtn").disabled = !needUser;
+      $("raiseDeclineBtn").disabled = !needUser;
+      $("modalAcceptBtn").disabled = !needUser;
+      $("modalDeclineBtn").disabled = !needUser;
+      showRaiseStep("decision");
+      // The blocking popup is only for players still IN the game. A
+      // spectator (already eliminated) never gets it — they follow the
+      // raise live in the side panel instead, without the page locking up.
+      if (userPlayer() && userPlayer().alive) openRaiseModal();
+      else closeRaiseModal();
+      if (proposer.you) logLine("<b>You proposed a raise</b> (+20 SQK). The others have up to 30 seconds to accept or decline — the timer ends as soon as everyone has decided.", "purp");
+      else logLine("<b>Raise proposed</b> by <span class='mono'>" + shortAddr(proposer.addr) + "</span> — up to 30 seconds to accept or decline the +20 SQK; the timer ends as soon as everyone has decided. (Raise " + game.raisesUsed + "/" + game.maxRaises + ")", "purp");
+      renderRaiseVotes(alive);
+      renderPot(); updateAliveLabel();
+
+      // bots decide during the 30-second decision window
+      var bots = alive.filter(function(p){ return !p.you && p !== proposer; });
+      bots.forEach(function(b){
+        var delay = 1500 + Math.random() * 12000;
+        setTimeout(function(){
+          if (!raiseState || gid !== game.id || raiseState.phase !== "decision") return;
+          if (raiseState.decisions[b.addr] !== undefined) return;
+          raiseState.decisions[b.addr] = Math.random() < 0.6;
+          renderRaiseVotesCurrent();
+        }, delay);
+      });
+
+      var decisionEarly = await countdown(RAISE_MS, [$("raiseFill"), $("modalRaiseFill")], $("modalRaiseCount"), function(){
+        if (!raiseState || raiseState.gid !== gid) return true; // game left / raise replaced — stop this timer
+        return alive.every(function(p){ return raiseState.decisions[p.addr] !== undefined; });
+      });
+      if (gid !== game.id){ if (!raiseState || raiseState.gid === gid) closeRaiseModal(); return false; }
+      if (decisionEarly) logLine("✓ Everyone has accepted or declined — the decision timer ended early, before the 30 seconds were up.", "good");
+      $("raiseAcceptBtn").disabled = true;
+      $("raiseDeclineBtn").disabled = true;
+      $("modalAcceptBtn").disabled = true;
+      $("modalDeclineBtn").disabled = true;
+
+      // settle the decision window: decline / silence = eliminated right now
+      var declined = [];
+      alivePlayers().slice().forEach(function(p){
+        if (raiseState.decisions[p.addr] !== true){
+          p.alive = false; declined.push(p); markDead(p);
+          if (p.you) game.userAlive = false;
+        }
+      });
+      var acceptors = alivePlayers();
+      renderRaiseVotesCurrent(); updateAliveLabel(); renderDay();
+      if (declined.length){
+        logLine("Decision window closed: " + declined.map(function(p){ return p.you ? "<b>you</b>" : shortAddr(p.addr); }).join(", ") + " declined or stayed silent and were eliminated.", "bad");
+      } else {
+        logLine("Decision window closed: everyone accepted the raise.", "good");
+      }
+
+      if (acceptors.length <= 1){
+        // one tile left standing — the game is decided, no raise is collected
+        raiseState = null;
+        $("raisePanel").classList.add("hidden");
+        closeRaiseModal();
+        renderPot(); renderDay();
+        game.phase = "playing";
+        return true;
+      }
+
+      /* --- transaction window: a separate 60 seconds, only for paying --- */
+      raiseState.phase = "tx";
+      acceptors.forEach(function(p){ raiseState.tx[p.addr] = "pending"; });
+      $("txSection").classList.remove("hidden");
+      var userIn = !!(userPlayer() && userPlayer().alive);
+      $("txConfirmBtn").disabled = !userIn;
+      $("txConfirmBtn").textContent = "Submit + confirm my +20 SQK tx";
+      $("modalTxConfirmBtn").disabled = !userIn;
+      $("modalTxConfirmBtn").textContent = "Confirm transaction — submit +20 SQK";
+      var txHintText = userIn
+        ? "Your status stays pending until you submit the transaction and it confirms — leave it unconfirmed and you are eliminated when the timer ends."
+        : "In practice mode this simulates Sepolia confirmations — on-chain, each wallet signs and the contract waits for the transaction to land.";
+      $("txHint").textContent = txHintText;
+      $("modalTxHint").textContent = txHintText;
+      showRaiseStep("tx");
+      // Same spectator rule for the transaction step: the popup stays up
+      // only for players who accepted and still owe a transaction. Anyone
+      // out of the game — declined, or spectating all along — is released
+      // from the popup here and watches the panel instead.
+      if (userIn) openRaiseModal();
+      else closeRaiseModal();
+      renderTxVotes(); renderPot();
+      logLine("⛓ Transaction window open: the " + acceptors.length + " players who accepted have <b>60 seconds</b> to submit and confirm +20 SQK on Sepolia — the window ends early once every transaction is confirmed or failed. Not confirmed in time = eliminated.", "purp");
+
+      // bots submit and (usually) confirm somewhere inside the window
+      acceptors.filter(function(p){ return !p.you; }).forEach(function(b){
+        var willConfirm = Math.random() < 0.82;
+        var delay = 3000 + Math.random() * 38000;
+        setTimeout(function(){
+          if (!raiseState || gid !== game.id || raiseState.phase !== "tx") return;
+          if (raiseState.tx[b.addr] !== "pending") return;
+          if (willConfirm){ raiseState.tx[b.addr] = "confirmed"; applyRaisePayment(b); }
+          else raiseState.tx[b.addr] = "failed";
+          renderTxVotes(); renderPot();
+        }, delay);
+      });
+
+      var txEarly = await countdown(TX_MS, [$("txFill"), $("modalTxFill")], [$("txCount"), $("modalTxCount")], function(){
+        if (!raiseState || raiseState.gid !== gid) return true; // game left / raise replaced — stop this timer
+        return acceptors.every(function(p){
+          var st = raiseState.tx[p.addr];
+          return st === "confirmed" || st === "failed";
+        });
+      });
+      if (gid !== game.id){ if (!raiseState || raiseState.gid === gid) closeRaiseModal(); return false; }
+      if (txEarly) logLine("✓ Every accepted transaction is confirmed or failed — the transaction window ended early, before the 60 seconds were up.", "good");
+
+      // settle the transaction window: not confirmed in 60s = eliminated
+      var failed = [];
+      alivePlayers().slice().forEach(function(p){
+        if (raiseState.tx[p.addr] !== "confirmed"){
+          raiseState.tx[p.addr] = "failed";
+          p.alive = false; failed.push(p); markDead(p);
+          if (p.you) game.userAlive = false;
+        }
+      });
+      renderTxVotes();
+      raiseState = null;
+      $("raisePanel").classList.add("hidden");
+      closeRaiseModal();
+      renderPot(); updateAliveLabel(); renderDay();
+      if (failed.length){
+        logLine("Transaction window closed: " + failed.map(function(p){ return p.you ? "<b>your</b> transaction" : shortAddr(p.addr); }).join(", ") + (failed.length === 1 && failed[0].you ? " was" : " did") + " not confirm in 60 seconds — eliminated. Pot is now <b>" + game.pot + " SQK</b>.", "bad");
+      } else {
+        logLine("Transaction window closed: every raise transaction confirmed. Pot grows to <b>" + game.pot + " SQK</b>.", "good");
+      }
+      game.phase = "playing";
+      return true;
+    }
+    function renderTxVotes(){
+      if (!raiseState) return;
+      var html = "";
+      game.players.forEach(function(p){
+        var st = raiseState.tx[p.addr];
+        if (st === undefined) return;
+        var who = p.you ? "<b>You</b>" : "<span class='mono'>" + shortAddr(p.addr) + "</span>";
+        if (raiseState.proposer === p) who += " (proposer)";
+        if (st === "confirmed") html += "<div>" + who + " — <span class='ok'>tx confirmed ✓ · +20 SQK paid</span></div>";
+        else if (st === "confirming") html += "<div>" + who + " — <span class='wait'>tx submitted · confirming…</span></div>";
+        else if (st === "failed") html += "<div>" + who + " — <span class='no'>tx failed / not confirmed · eliminated</span></div>";
+        else html += "<div>" + who + " — <span class='wait'>tx pending · not submitted yet</span></div>";
+      });
+      $("txVotes").innerHTML = html;
+      $("modalTxVotes").innerHTML = html;
+    }
+    function applyRaisePayment(p){
+      game.pot += TO_PRIZE;
+      day.creatorFees += FEE;
+      if (p.you){ wallet.balance -= ENTRY; renderBalance(); updateJoinBtn(); }
+    }
+    function renderRaiseVotesCurrent(){ if (raiseState) renderRaiseVotes(game.players); }
+    function renderRaiseVotes(list){
+      if (!raiseState) return;
+      var html = "";
+      game.players.forEach(function(p){
+        if (!p.alive && raiseState.decisions[p.addr] === undefined) return;
+        var d = raiseState.decisions[p.addr];
+        var who = p.you ? "<b>You</b>" : "<span class='mono'>" + shortAddr(p.addr) + "</span>";
+        if (raiseState.proposer === p) html += "<div>" + who + " — <span class='ok'>proposed the raise</span></div>";
+        else if (d === true) html += "<div>" + who + " — <span class='ok'>accepted +20 SQK</span></div>";
+        else if (d === false) html += "<div>" + who + " — <span class='no'>declined · eliminated</span></div>";
+        else html += "<div>" + who + " — <span class='wait'>deciding…</span></div>";
+      });
+      $("raiseVotes").innerHTML = html;
+      $("modalRaiseVotes").innerHTML = html;
+    }
+    function doAcceptRaise(){
+      if (!raiseState || raiseState.phase !== "decision") return;
+      raiseState.decisions[wallet.address] = true;
+      $("raiseAcceptBtn").disabled = true; $("raiseDeclineBtn").disabled = true;
+      $("modalAcceptBtn").disabled = true; $("modalDeclineBtn").disabled = true;
+      renderRaiseVotesCurrent();
+      logLine("<b>You accepted the raise.</b> Nothing is paid yet — when the decision window closes (it ends as soon as everyone has decided), the transaction step opens in this same popup for submitting and confirming your +20 SQK transaction.", "good");
+    }
+    $("raiseAcceptBtn").addEventListener("click", doAcceptRaise);
+    $("modalAcceptBtn").addEventListener("click", doAcceptRaise);
+    function doConfirmTx(){
+      (async function(){
+      if (!raiseState || raiseState.phase !== "tx") return;
+      var me = userPlayer();
+      if (!me || !me.alive || raiseState.tx[me.addr] !== "pending") return;
+      if (wallet.balance < ENTRY){
+        logLine("Not enough practice SQK to send the raise transaction — it stays unconfirmed, so you will be eliminated when the window closes.", "bad");
+        return;
+      }
+      $("txConfirmBtn").disabled = true;
+      $("txConfirmBtn").textContent = "Confirming on Sepolia…";
+      $("modalTxConfirmBtn").disabled = true;
+      $("modalTxConfirmBtn").textContent = "Confirming on Sepolia…";
+      raiseState.tx[me.addr] = "confirming";
+      renderTxVotes();
+      await sleep(2600);
+      if (!raiseState || raiseState.phase !== "tx" || raiseState.tx[me.addr] !== "confirming") return;
+      raiseState.tx[me.addr] = "confirmed";
+      applyRaisePayment(me);
+      $("txConfirmBtn").textContent = "Tx confirmed ✓";
+      $("modalTxConfirmBtn").textContent = "Transaction confirmed ✓";
+      renderTxVotes(); renderPot();
+      logLine("<b>Your raise transaction confirmed</b> (+20 SQK) inside the 60-second window. You stay in the game.", "good");
+      })();
+    }
+    $("txConfirmBtn").addEventListener("click", doConfirmTx);
+    $("modalTxConfirmBtn").addEventListener("click", doConfirmTx);
+    function doDeclineRaise(){
+      if (!raiseState || raiseState.phase !== "decision") return;
+      raiseState.decisions[wallet.address] = false;
+      $("raiseAcceptBtn").disabled = true; $("raiseDeclineBtn").disabled = true;
+      $("modalAcceptBtn").disabled = true; $("modalDeclineBtn").disabled = true;
+      renderRaiseVotesCurrent();
+      logLine("<b>You declined the raise</b> — you will be eliminated when the window closes.", "bad");
+    }
+    $("raiseDeclineBtn").addEventListener("click", doDeclineRaise);
+    $("modalDeclineBtn").addEventListener("click", doDeclineRaise);
+
+    /* ---------- finish ---------- */
+    function finishGame(gid){
+      game.running = false;
+      game.phase = "finished";
+      var winner = alivePlayers()[0];
+      var pot = game.pot;
+      var toWinner = game.tier === "FULL" ? pot : (game.tier === "HALF" ? Math.floor(pot / 2) : 0);
+      var toTreasury = pot - toWinner;
+      if (winner){
+        var wt = $("tile-" + game.players.indexOf(winner));
+        if (wt){ wt.classList.add("winner"); wt.querySelector(".t-tag").textContent = "★ Winner — final tile"; }
+        if (winner.you){ wallet.balance += toWinner; renderBalance(); }
+      }
+      day.treasury += toTreasury;
+      game.pot = 0;
+      setWheel("THE FINAL TILE OPENS", null, false);
+      $("wheelSub").textContent = "Game #" + gid + " is over. The final tile was " + game.tier + " — see the log for the full payout.";
+      $("roundLabel").textContent = "GAME #" + gid + " — FINISHED";
+      renderPot("Game #" + gid + " finished · tier " + game.tier);
+      $("tierBadge").textContent = "TIER WAS: " + game.tier;
+      if (winner && winner.you){
+        logLine("🏆 <b>You reached the final tile!</b> Tier <b>" + game.tier + "</b>: you receive <b>" + fmt(toWinner) + " SQK</b>" + (toTreasury ? ", " + fmt(toTreasury) + " SQK goes to the treasury." : "."), "gold");
+      } else if (winner){
+        logLine("🏆 Winner: <span class='mono'>" + shortAddr(winner.addr) + "</span> reached the final tile. Tier <b>" + game.tier + "</b>: winner receives <b>" + fmt(toWinner) + " SQK</b>" + (toTreasury ? ", <b>" + fmt(toTreasury) + " SQK</b> to the treasury." : "."), "gold");
+      }
+      if (game.tier === "EMPTY") logLine("The final tile was EMPTY — the whole pot moved to the treasury for the next draw (every 1,800 blocks, about every 6 hours).", "purp");
+      $("joinHint").textContent = "Game over. Join another lobby whenever you're ready.";
+      renderDay(); updateJoinBtn(); updateAliveLabel();
+      if (winner){
+        showWinnerModal({
+          winner: winner, pot: pot, toWinner: toWinner, toTreasury: toTreasury,
+          feesPaid: Math.round(pot / TO_PRIZE * FEE),
+          lobbySize: game.lobbySize || game.players.length,
+          lobbyName: game.lobbyName || (game.players.length + " players")
+        });
+      }
+    }
+
+    /* ---------- winner popup ---------- */
+    function openWinnerModal(){
+      $("winnerModal").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    }
+    function closeWinnerModal(){
+      $("winnerModal").classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+    function showWinnerModal(d){
+      closeRaiseModal();
+      var w = d.winner, youWon = !!w.you;
+      var box = $("winnerBox");
+      box.classList.remove("is-full", "is-half", "is-empty");
+      box.classList.add("is-" + game.tier.toLowerCase());
+      var badge = $("winnerTierBadge");
+      badge.className = "tier-badge " + game.tier.toLowerCase();
+      var confetti = $("winnerConfetti");
+      var seedLine = "Final-tile seed — block <b>#" + fmt(game.seedBlock) + "</b>: " +
+        "(<b>" + fmt(game.seedBlock) + "</b> × 2654435761 + 97) mod 100 = <b>" + game.seed + "</b> → <b>" + game.tier + "</b>" +
+        (game.tier === "FULL" ? " (seed 0–49)" : game.tier === "HALF" ? " (seed 50–79)" : " (seed 80–99)") +
+        " · fixed by formula at game start, before anyone played.";
+      $("winnerSeed").innerHTML = seedLine;
+      $("winnerName").textContent = youWon ? "You ★ " + shortAddr(w.addr) : shortAddr(w.addr);
+      $("winnerName").title = w.addr;
+      $("winnerLobby").textContent = d.lobbyName + " · " + d.lobbySize + " players";
+      $("winnerPot").textContent = fmt(d.pot);
+      $("winnerGets").textContent = fmt(d.toWinner);
+      $("winnerTreasury").textContent = fmt(d.toTreasury);
+      $("winnerFees").textContent = fmt(d.feesPaid);
+
+      if (game.tier === "FULL"){
+        $("winnerHamster").innerHTML = hamsterSVG(w.fur, w.hat);
+        confetti.classList.remove("hidden");
+        badge.textContent = "★ FINAL TILE: FULL — WINNER TAKES ALL";
+        $("winnerTitle").textContent = youWon ? "🏆 YOU WIN IT ALL!" : "🏆 WE HAVE A WINNER!";
+        $("winnerText").innerHTML = (youWon
+          ? "You were the last hamster standing — and the final tile was <b>FULL</b>! The whole pot is yours."
+          : "<b>" + shortAddr(w.addr) + "</b> was the last hamster standing — and the final tile was <b>FULL</b>! They take the whole pot.");
+        $("winnerAmount").textContent = fmt(d.pot) + " SQK";
+        $("winnerAmountSub").textContent = "The full pot — every last SQK of it goes to the winner. Nothing goes to the treasury.";
+        $("winnerNote").textContent = "Practice mode: the payout above landed in the demo ledger, exactly as the contract would pay it on-chain.";
+      } else if (game.tier === "HALF"){
+        $("winnerHamster").innerHTML = hamsterSVG(w.fur, w.hat);
+        confetti.classList.remove("hidden");
+        badge.textContent = "◐ FINAL TILE: HALF — SPLIT WITH THE TREASURY";
+        $("winnerTitle").textContent = youWon ? "🏆 YOU WIN — HALF THE POT!" : "🏆 WE HAVE A WINNER!";
+        $("winnerText").innerHTML = (youWon
+          ? "You were the last hamster standing — and the final tile was <b>HALF</b>. Half the pot is yours; the other half feeds the treasury."
+          : "<b>" + shortAddr(w.addr) + "</b> was the last hamster standing — and the final tile was <b>HALF</b>. Half the pot is theirs; the other half feeds the treasury.");
+        $("winnerAmount").textContent = fmt(d.toWinner) + " SQK";
+        $("winnerAmountSub").textContent = "Winner's half of the " + fmt(d.pot) + " SQK pot — the other " + fmt(d.toTreasury) + " SQK went to the treasury for the next draw (every 1,800 blocks, about every 6 hours).";
+        $("winnerNote").textContent = "Practice mode: the payout above landed in the demo ledger, exactly as the contract would pay it on-chain.";
+      } else {
+        $("winnerHamster").innerHTML = laughingHamsterSVG(w.fur);
+        confetti.classList.add("hidden");
+        badge.textContent = "○ FINAL TILE: EMPTY — THE HAMSTER IS CRACKING UP";
+        $("winnerTitle").textContent = "😂 SO CLOSE… AND YET SO EMPTY!";
+        $("winnerText").innerHTML = "Oh no — the wheel hamster is <b>laughing</b>! " + (youWon
+          ? "You outran every other tile, reached the final tile… and it was <b>EMPTY</b>. All that running for a big, shiny <b>0 SQK</b>!"
+          : "<b>" + shortAddr(w.addr) + "</b> outran every other tile, reached the final tile… and it was <b>EMPTY</b>. All that running for a big, shiny <b>0 SQK</b>!") +
+          " Don't take it personally — the tile was sealed by the block formula before the game even started. Blame the blockchain, not the hamster. (He'll stop giggling eventually.)";
+        $("winnerAmount").textContent = "0 SQK";
+        $("winnerAmountSub").textContent = "The winner gets nothing this time — the whole " + fmt(d.pot) + " SQK pot went to the treasury, where it joins the next draw (every 1,800 blocks, about every 6 hours). One lucky entrant will airdrop-win it… maybe even the winner of this game.";
+        $("winnerNote").textContent = "Practice mode: as on-chain, an EMPTY tile pays 0 SQK to the winner and moves the full pot to the treasury.";
+      }
+      // pixel confetti for the celebration states (none for EMPTY)
+      confetti.innerHTML = "";
+      if (game.tier !== "EMPTY"){
+        var colors = ["#f5b942", "#2dd4bf", "#a78bfa", "#f87171", "#4ade80"];
+        for (var i = 0; i < 16; i++){
+          var c = document.createElement("i");
+          c.style.left = (i * 6.2 + 2) + "%";
+          c.style.background = colors[i % colors.length];
+          c.style.animationDelay = (i % 8) * 0.33 + "s";
+          confetti.appendChild(c);
+        }
+      }
+      openWinnerModal();
+    }
+    $("winnerCloseBtn").addEventListener("click", closeWinnerModal);
+    $("winnerXBtn").addEventListener("click", closeWinnerModal);
+    // The result popup can also be dismissed with Escape or by tapping the
+    // dark backdrop outside the box — it is a results screen, nothing is
+    // lost by closing it (the raise popup deliberately has no such escape).
+    document.addEventListener("keydown", function(e){
+      if (e.key === "Escape" && !$("winnerModal").classList.contains("hidden")) closeWinnerModal();
+    });
+    $("winnerModal").addEventListener("click", function(e){
+      if (e.target === $("winnerModal")) closeWinnerModal();
+    });
+    $("playAgainBtn").addEventListener("click", function(){
+      closeWinnerModal();
+      if (typeof appMode !== "undefined" && appMode === "real"){
+        $("realPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      if (game.running) return;
+      var lobby = LOBBIES.filter(function(l){ return l.size === (game.lobbySize || selectedLobby.size); })[0] || selectedLobby;
+      selectedLobby = lobby;
+      Array.prototype.forEach.call($("lobbies").children, function(c, i){ c.classList.toggle("sel", LOBBIES[i] === lobby); });
+      updateJoinBtn();
+      if (wallet.connected && wallet.balance >= ENTRY) startGame(lobby);
+      else window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    /* ---------- treasury draw: every 1,800 blocks (~6 hours), anyone can trigger ---------- */
+    $("drawBtn").addEventListener("click", function(){
+      if (day.treasury <= 0 || !day.entrantList.length) return;
+      if (chain.height < day.nextDrawBlock) return;
+      var drawBlock = chain.height;
+      var pool = day.entrantList.slice();
+      var r = rng(hashStr("draw:" + drawBlock + ":" + day.treasury));
+      var winner = pool[Math.floor(r() * pool.length)];
+      var amount = day.treasury;
+      day.treasury = 0;
+      day.lastDrawBlock = drawBlock;
+      day.nextDrawBlock = drawBlock + DRAW_INTERVAL;
+      day.draws.unshift({ winner: winner, amount: amount, block: drawBlock });
+      day.entrants = {}; day.entrantList = []; day.games = 0;
+      if (wallet.connected && winner === wallet.address){ wallet.balance += amount; renderBalance(); }
+      $("drawWinners").innerHTML = day.draws.map(function(d){
+        return "<div>🎁 <span class='mono'>" + shortAddr(d.winner) + "</span> — <b>" + fmt(d.amount) + " SQK</b> airdropped · draw block #" + fmt(d.block) + "</div>";
+      }).join("");
+      logLine("🎁 Treasury draw at block #" + fmt(drawBlock) + ": <span class='mono'>" + shortAddr(winner) + "</span> wins the whole treasury — <b>" + fmt(amount) + " SQK</b> airdropped, drawn from the " + pool.length + " addresses that entered a game before this block. Next draw at block #" + fmt(day.nextDrawBlock) + " (1,800 blocks ≈ 6 hours).", "gold");
+      renderDay();
+    });
+
+    /* ---------- contract + copy buttons ---------- */
+    $("contractCode").textContent = $("contractSrc").textContent.trim();
+    Array.prototype.forEach.call(document.querySelectorAll("[data-copy]"), function(btn){
+      btn.addEventListener("click", function(){
+        var src = $(btn.getAttribute("data-copy"));
+        var text = src.textContent.trim();
+        function done(){
+          var note = btn.parentElement.querySelector("[data-copied]");
+          if (note){ note.classList.remove("hidden"); setTimeout(function(){ note.classList.add("hidden"); }, 2000); }
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(done).catch(function(){ fallback(); });
+        } else fallback();
+        function fallback(){
+          var ta = document.createElement("textarea");
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          try { document.execCommand("copy"); } catch (e) {}
+          document.body.removeChild(ta); done();
+        }
+      });
+    });
+
+    renderDay(); updateJoinBtn();
+    </script>
+
+    <script>
+    "use strict";
+    /* ================= Real Mode — SqueekTiles on Sepolia =================
+       Talks to the deployed contract with ethers v5 + MetaMask
+       (window.ethereum). Practice Mode above is untouched: this layer only
+       activates when the player switches to Real Mode. Reads work through
+       MetaMask when connected, otherwise through a public Sepolia RPC.   */
+    var REAL_CONTRACT = "0x7042Fa3563706eAcc8688AF9C3bBcf4Ae1C6F212";
+    var REAL_SQK = "0xd78a3956cF63164d1Fa1C622ad3c66623162Fa1e";
+    var REAL_CREATOR = "0x8a53644c0CF45EFc0247E8e01d24607b870793C4";
+    var REAL_CHAIN_ID = 11155111;
+    var REAL_CHAIN_HEX = "0xaa36a7";
+    var REAL_RPC = "https://ethereum-sepolia-rpc.publicnode.com";
+    var REAL_EXPLORER = "https://sepolia.etherscan.io";
+    var PHASE_NAMES = ["Filling — waiting for players", "Playing", "Raise open — decision window (30s)", "Raise — transaction window (60s)", "Finished"];
+    var TIER_NAMES = ["FULL", "HALF", "EMPTY"];
+    var GAME_ABI = [{"type":"constructor","stateMutability":"nonpayable","inputs":[{"name":"sqkToken","type":"address"},{"name":"creatorAddress","type":"address"}]},{"type":"event","name":"Eliminated","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"player","type":"address","indexed":false},{"name":"round","type":"uint256","indexed":false}]},{"type":"event","name":"GameFinished","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"winner","type":"address","indexed":false},{"name":"tier","type":"uint8","indexed":false},{"name":"paidOut","type":"uint256","indexed":false},{"name":"toTreasury","type":"uint256","indexed":false}]},{"type":"event","name":"GameStarted","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"seedBlock","type":"uint256","indexed":false},{"name":"seed","type":"uint256","indexed":false}]},{"type":"event","name":"Joined","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"player","type":"address","indexed":false}]},{"type":"event","name":"RaiseAccepted","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"player","type":"address","indexed":false}]},{"type":"event","name":"RaiseDeclined","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"player","type":"address","indexed":false}]},{"type":"event","name":"RaiseDropped","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"player","type":"address","indexed":false}]},{"type":"event","name":"RaiseMatched","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"player","type":"address","indexed":false}]},{"type":"event","name":"RaiseProposed","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"proposer","type":"address","indexed":false},{"name":"deadline","type":"uint256","indexed":false}]},{"type":"event","name":"RaiseTxFailed","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"player","type":"address","indexed":false}]},{"type":"event","name":"TreasuryDrawn","anonymous":false,"inputs":[{"name":"winner","type":"address","indexed":false},{"name":"amount","type":"uint256","indexed":false}]},{"type":"event","name":"TxWindowOpened","anonymous":false,"inputs":[{"name":"gameId","type":"uint256","indexed":true},{"name":"txDeadline","type":"uint256","indexed":false}]},{"type":"function","name":"DRAW_INTERVAL","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"ENTRY","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"FEE","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"RAISE_TIME","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"SPIN_TIME","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"TO_PRIZE","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"TX_TIME","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"acceptRaise","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"alive","stateMutability":"view","inputs":[{"name":"","type":"uint256"},{"name":"","type":"address"}],"outputs":[{"name":"","type":"bool"}]},{"type":"function","name":"aliveCount","stateMutability":"view","inputs":[{"name":"","type":"uint256"}],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"confirmRaiseTx","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"createGame","stateMutability":"nonpayable","inputs":[{"name":"size","type":"uint8"}],"outputs":[{"name":"gameId","type":"uint256"}]},{"type":"function","name":"creator","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"address"}]},{"type":"function","name":"declineRaise","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"enteredThisPeriod","stateMutability":"view","inputs":[{"name":"","type":"address"}],"outputs":[{"name":"","type":"bool"}]},{"type":"function","name":"entrants","stateMutability":"view","inputs":[{"name":"","type":"uint256"}],"outputs":[{"name":"","type":"address"}]},{"type":"function","name":"games","stateMutability":"view","inputs":[{"name":"","type":"uint256"}],"outputs":[{"name":"size","type":"uint8"},{"name":"phase","type":"uint8"},{"name":"pot","type":"uint256"},{"name":"seedBlock","type":"uint256"},{"name":"seed","type":"uint256"},{"name":"tier","type":"uint8"},{"name":"raisesUsed","type":"uint8"},{"name":"maxRaises","type":"uint8"},{"name":"raiseDeadline","type":"uint256"},{"name":"txDeadline","type":"uint256"},{"name":"raiseProposer","type":"address"},{"name":"spinReadyAt","type":"uint256"},{"name":"winner","type":"address"}]},{"type":"function","name":"joinLobby","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"lastDrawBlock","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"markRaiseTxFailed","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"maxRaisesFor","stateMutability":"pure","inputs":[{"name":"size","type":"uint8"}],"outputs":[{"name":"","type":"uint8"}]},{"type":"function","name":"nextGameId","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"openTxWindow","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"players","stateMutability":"view","inputs":[{"name":"","type":"uint256"},{"name":"","type":"uint256"}],"outputs":[{"name":"","type":"address"}]},{"type":"function","name":"proposeRaise","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"raiseAccepted","stateMutability":"view","inputs":[{"name":"","type":"uint256"},{"name":"","type":"address"}],"outputs":[{"name":"","type":"bool"}]},{"type":"function","name":"raiseDeclined","stateMutability":"view","inputs":[{"name":"","type":"uint256"},{"name":"","type":"address"}],"outputs":[{"name":"","type":"bool"}]},{"type":"function","name":"raiseMatched","stateMutability":"view","inputs":[{"name":"","type":"uint256"},{"name":"","type":"address"}],"outputs":[{"name":"","type":"bool"}]},{"type":"function","name":"raiseTxFailed","stateMutability":"view","inputs":[{"name":"","type":"uint256"},{"name":"","type":"address"}],"outputs":[{"name":"","type":"bool"}]},{"type":"function","name":"settleRaise","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"}],"outputs":[]},{"type":"function","name":"spinAndEliminate","stateMutability":"nonpayable","inputs":[{"name":"gameId","type":"uint256"},{"name":"round","type":"uint256"}],"outputs":[]},{"type":"function","name":"sqk","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"address"}]},{"type":"function","name":"treasury","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint256"}]},{"type":"function","name":"treasuryDraw","stateMutability":"nonpayable","inputs":[],"outputs":[]}];
+    var ERC20_ABI = [
+      {"type":"function","name":"balanceOf","stateMutability":"view","inputs":[{"name":"account","type":"address"}],"outputs":[{"name":"","type":"uint256"}]},
+      {"type":"function","name":"allowance","stateMutability":"view","inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"}],"outputs":[{"name":"","type":"uint256"}]},
+      {"type":"function","name":"approve","stateMutability":"nonpayable","inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"}],"outputs":[{"name":"","type":"bool"}]},
+      {"type":"function","name":"decimals","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"uint8"}]},
+      {"type":"function","name":"symbol","stateMutability":"view","inputs":[],"outputs":[{"name":"","type":"string"}]}
+    ];
+    var appMode = "practice";
+    var realState = {
+      account: null, chainId: null, balance: null, balanceNum: null,
+      gameId: null, lastState: null, round: 1, winnerShownFor: null,
+      modalByReal: false, busy: false,
+      refreshing: false, startedNotifiedFor: null, lastWaitingUpdated: null, fillingSeenFor: null
+    };
+    function realErr(e){
+      var m = (e && (e.data && e.data.message || e.reason || e.message)) || String(e || "unknown error");
+      if (m.length > 220) m = m.slice(0, 220) + "…";
+      return m;
+    }
+    function ethersReady(){
+      if (typeof window.ethers === "undefined"){
+        $("realWalletMsg").textContent = "The web3 library (ethers.js) failed to load — check your connection and reload the page, then try Real Mode again.";
+        return false;
+      }
+      return true;
+    }
+    function readProvider(){
+      if (window.ethereum) return new ethers.providers.Web3Provider(window.ethereum);
+      return new ethers.providers.JsonRpcProvider(REAL_RPC);
+    }
+    function readGame(){ return new ethers.Contract(REAL_CONTRACT, GAME_ABI, readProvider()); }
+    function readToken(){ return new ethers.Contract(REAL_SQK, ERC20_ABI, readProvider()); }
+    function signerProvider(){ return new ethers.providers.Web3Provider(window.ethereum); }
+    function signerGame(){ var p = signerProvider(); return new ethers.Contract(REAL_CONTRACT, GAME_ABI, p.getSigner()); }
+    function signerToken(){ var p = signerProvider(); return new ethers.Contract(REAL_SQK, ERC20_ABI, p.getSigner()); }
+    function fmtSQK(bn){ return bn == null ? "—" : Number(ethers.utils.formatUnits(bn, 18)).toLocaleString("en-US", { maximumFractionDigits: 4 }); }
+
+    /* ---------- mode switching (Practice stays exactly as it was) ---------- */
+    function setMode(mode){
+      appMode = mode;
+      var real = mode === "real";
+      $("modePracticeBtn").classList.toggle("sel", !real);
+      $("modeRealBtn").classList.toggle("sel", real);
+      $("realContractBar").classList.toggle("hidden", !real);
+      $("realPanel").classList.toggle("hidden", !real);
+      $("joinBtn").classList.toggle("hidden", real);
+      $("joinHint").classList.toggle("hidden", real);
+      $("barPracticeActions").classList.toggle("hidden", real);
+      $("barRealActions").classList.toggle("hidden", !real);
+      $("modeNote").classList.toggle("real", real);
+      $("modeNote").innerHTML = real
+        ? "<b>Real mode is ON — Sepolia testnet.</b> Games here run on the deployed SqueekTiles contract: connecting a wallet, approving SQK and joining all send real Sepolia transactions from MetaMask. Same rules as practice — 20 SQK entry (18 to the pot, 2 creator fee), lobbies of 4 / 9 / 16, raises +20 SQK. Sepolia SQK is a test token with no real value and the contract is unaudited."
+        : "<b>Practice mode is ON.</b> This build runs the full game locally with practice SQK and bot players, so anyone — including Genesis reviewers — can play without a wallet or real tokens. The on-chain version uses the exact same rules; the Solidity contract is at the bottom of this page.";
+      try { closeRaiseModal(); closeWinnerModal(); } catch (e) {}
+      try { raiseState = null; } catch (e) {}
+      realState.modalByReal = false;
+      if (real){
+        $("faucetBtn").classList.add("hidden");
+        $("spectatorBar").classList.add("hidden");
+        syncHeaderReal();
+        renderRealLobbyInfo(realState.lastState);
+        renderRealWaiting(realState.lastState);
+        if (!window.ethereum) $("realWalletMsg").textContent = "MetaMask was not found in this browser. Install the MetaMask extension, then reload this page and connect.";
+        refreshRealState(false);
+        if (realState.account) refreshRealBalance();
+      } else {
+        $("spectatorBar").classList.add("hidden");
+        // The live lobby-waiting banners are Real Mode only — never leak them into Practice.
+        if ($("realWaitingBox")) $("realWaitingBox").classList.add("hidden");
+        if ($("realBoardWaiting")) $("realBoardWaiting").classList.add("hidden");
+        try { refreshSpectatorUI(); } catch (e) {}
+        if (typeof wallet !== "undefined" && wallet.connected){
+          $("walletDot").classList.add("on");
+          $("walletAddr").textContent = shortAddr(wallet.address);
+          $("walletNet").textContent = (wallet.real ? "Wallet connected" : "Simulated wallet (no extension found)") + " · Sepolia testnet · SQK token · Practice demo ledger";
+          $("connectBtn").textContent = "Wallet connected ✓";
+          $("connectBtn").disabled = true;
+          $("faucetBtn").classList.remove("hidden");
+          renderBalance();
+        } else {
+          $("walletDot").classList.remove("on");
+          $("walletAddr").textContent = "Not connected";
+          $("walletBal").textContent = "—";
+          $("walletNet").textContent = "Sepolia testnet · SQK token · Practice demo ledger — switch to Real Mode for the on-chain game";
+          $("connectBtn").textContent = "Connect wallet";
+          $("connectBtn").disabled = false;
+          $("faucetBtn").classList.add("hidden");
+        }
+        try { updateJoinBtn(); } catch (e) {}
+      }
+    }
+    $("modePracticeBtn").addEventListener("click", function(){ setMode("practice"); });
+    $("modeRealBtn").addEventListener("click", function(){ setMode("real"); });
+
+    /* ---------- copy contract address buttons ---------- */
+    Array.prototype.forEach.call(document.querySelectorAll(".copy-contract-btn"), function(btn){
+      btn.addEventListener("click", function(){
+        function done(){
+          Array.prototype.forEach.call(document.querySelectorAll(".copy-contract-done"), function(n){
+            n.classList.remove("hidden"); setTimeout(function(){ n.classList.add("hidden"); }, 2000);
+          });
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(REAL_CONTRACT).then(done).catch(function(){ fallback(); });
+        else fallback();
+        function fallback(){
+          var ta = document.createElement("textarea");
+          ta.value = REAL_CONTRACT; document.body.appendChild(ta); ta.select();
+          try { document.execCommand("copy"); } catch (e) {}
+          document.body.removeChild(ta); done();
+        }
+      });
+    });
+
+    /* ---------- MetaMask: connect, network check, balance ---------- */
+    function syncHeaderReal(){
+      if (realState.account){
+        $("walletDot").classList.add("on");
+        $("walletAddr").textContent = shortAddr(realState.account);
+        $("walletAddr").title = realState.account;
+        $("walletBal").textContent = realState.balance != null ? fmtSQK(realState.balance) : "…";
+        $("walletNet").textContent = "MetaMask · " + (realState.chainId === REAL_CHAIN_ID ? "Sepolia testnet (11155111) ✓" : "Wrong network — switch to Sepolia") + " · Real Mode — on-chain SQK";
+        $("connectBtn").textContent = "Real Mode — use the play bar above";
+        $("connectBtn").disabled = true;
+      } else {
+        $("walletDot").classList.remove("on");
+        $("walletAddr").textContent = "Not connected";
+        $("walletBal").textContent = "—";
+        $("walletNet").textContent = "Real Mode · Sepolia testnet · Connect MetaMask in the play bar above the board";
+        $("connectBtn").textContent = "Real Mode — use the play bar above";
+        $("connectBtn").disabled = true;
+      }
+    }
+    function renderRealWallet(){
+      var onSepolia = realState.chainId === REAL_CHAIN_ID;
+      $("realNetStatus").textContent = realState.chainId == null ? "Not checked" : (onSepolia ? "Sepolia (11155111) ✓" : "Chain " + realState.chainId + " — not Sepolia");
+      $("realAddr").textContent = realState.account ? shortAddr(realState.account) : "Not connected";
+      $("realAddr").title = realState.account || "";
+      $("realBal").textContent = realState.balance != null ? fmtSQK(realState.balance) : "—";
+      $("realWrongNet").classList.toggle("hidden", !(realState.account && !onSepolia));
+      $("realSwitchBtn").classList.toggle("hidden", !(realState.account && !onSepolia));
+      $("realRefreshBalBtn").classList.toggle("hidden", !realState.account);
+      var low = realState.balance != null && realState.balanceNum != null && realState.balanceNum < 20;
+      $("realLowBal").classList.toggle("hidden", !low);
+      if (realState.account) $("realConnectBtn").textContent = "Wallet connected ✓";
+      syncHeaderReal();
+    }
+    async function checkRealChain(){
+      try {
+        var hex = await window.ethereum.request({ method: "eth_chainId" });
+        realState.chainId = parseInt(hex, 16);
+      } catch (e) {
+        try { var net = await readProvider().getNetwork(); realState.chainId = net.chainId; } catch (e2) {}
+      }
+      renderRealWallet();
+      return realState.chainId;
+    }
+    async function connectRealWallet(){
+      if (!ethersReady()) return;
+      if (!window.ethereum){
+        $("realWalletMsg").textContent = "MetaMask was not found. Install the MetaMask browser extension (or open this page in the MetaMask app browser), then try again.";
+        logLine("Real Mode: MetaMask not found in this browser.", "bad");
+        return;
+      }
+      try {
+        var accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+        if (!accs || !accs.length) throw new Error("No account returned by MetaMask.");
+        realState.account = accs[0];
+        await checkRealChain();
+        $("realWalletMsg").textContent = realState.chainId === REAL_CHAIN_ID
+          ? "Connected on Sepolia. Your balance below is read live from the SQK token contract."
+          : "Connected, but MetaMask is on the wrong network — switch to Sepolia (chain ID 11155111) before sending any transaction.";
+        logLine("Real Mode: wallet connected — <span class='mono'>" + realState.account + "</span> on chain " + realState.chainId + ".", "good");
+        await refreshRealBalance();
+        refreshRealState(false);
+      } catch (e) {
+        $("realWalletMsg").textContent = "Connection failed or was rejected in MetaMask: " + realErr(e);
+        logLine("Real Mode: wallet connection failed — " + realErr(e), "bad");
+      }
+      renderRealWallet();
+    }
+    $("realConnectBtn").addEventListener("click", connectRealWallet);
+    $("realRefreshBalBtn").addEventListener("click", function(){ refreshRealBalance(); });
+    async function switchToSepolia(){
+      if (!window.ethereum) return;
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: REAL_CHAIN_HEX }] });
+      } catch (e) {
+        if (e && e.code === 4902){
+          try {
+            await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
+              chainId: REAL_CHAIN_HEX, chainName: "Sepolia",
+              nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+              rpcUrls: [REAL_RPC], blockExplorerUrls: [REAL_EXPLORER]
+            }] });
+          } catch (e2) { $("realWalletMsg").textContent = "Could not add Sepolia in MetaMask: " + realErr(e2); return; }
+        } else if (e && e.code === 4001) {
+          $("realWalletMsg").textContent = "Network switch was rejected in MetaMask. Real Mode needs Sepolia (11155111).";
+          return;
+        } else { $("realWalletMsg").textContent = "Network switch failed: " + realErr(e); return; }
+      }
+      await checkRealChain();
+      await refreshRealBalance();
+      $("realWalletMsg").textContent = "Switched to Sepolia. You can create and join real games now.";
+    }
+    $("realSwitchBtn").addEventListener("click", switchToSepolia);
+    async function refreshRealBalance(){
+      if (!realState.account || !ethersReady()) return;
+      try {
+        var bal = await readToken().balanceOf(realState.account);
+        realState.balance = bal;
+        realState.balanceNum = Number(ethers.utils.formatUnits(bal, 18));
+      } catch (e) {
+        $("realWalletMsg").textContent = "Could not read your SQK balance from the token contract: " + realErr(e);
+      }
+      renderRealWallet();
+    }
+    if (window.ethereum && window.ethereum.on){
+      window.ethereum.on("accountsChanged", function(accs){
+        realState.account = accs && accs.length ? accs[0] : null;
+        realState.balance = null; realState.balanceNum = null;
+        renderRealWallet();
+        if (realState.account) refreshRealBalance();
+      });
+      window.ethereum.on("chainChanged", function(){
+        checkRealChain().then(function(){ refreshRealBalance(); refreshRealState(false); });
+      });
+    }
+    /* ---------- transaction status list (waiting / sent / confirmed / failed) ---------- */
+    function realTxRow(label){
+      var li = document.createElement("li");
+      li.innerHTML = "<div><b>" + label + "</b> — <span class='tx-status st-waiting'>waiting</span></div><div class='tx-link'></div>";
+      $("realTxList").appendChild(li);
+      return li;
+    }
+    function setRealTx(row, status, hash, note){
+      var st = row.querySelector(".tx-status");
+      st.textContent = status + (note ? " — " + note : "");
+      st.className = "tx-status st-" + status;
+      if (hash){
+        row.querySelector(".tx-link").innerHTML = "<a href='" + REAL_EXPLORER + "/tx/" + hash + "' target='_blank' rel='noopener'>" + hash.slice(0, 18) + "… ↗ Etherscan</a>";
+      }
+    }
+    /* Runs one contract transaction with full status tracking.
+       makeTx() must return the ethers transaction promise. */
+    async function sendRealTx(label, makeTx, preRow){
+      var row = preRow || realTxRow(label);
+      try {
+        var tx = await makeTx();
+        setRealTx(row, "sent", tx.hash, "waiting for confirmation…");
+        logLine("Real Mode: " + label + " sent — <a href='" + REAL_EXPLORER + "/tx/" + tx.hash + "' target='_blank' rel='noopener'>tx on Etherscan</a>.", "purp");
+        var receipt = await tx.wait();
+        if (receipt.status === 0) throw new Error("Transaction confirmed but reverted on-chain.");
+        setRealTx(row, "confirmed", tx.hash, "block #" + receipt.blockNumber);
+        logLine("Real Mode: " + label + " <b>confirmed</b> in block #" + receipt.blockNumber + ".", "good");
+        return receipt;
+      } catch (e) {
+        var hash = e && (e.transactionHash || (e.receipt && e.receipt.transactionHash) || (e.tx && e.tx.hash));
+        setRealTx(row, "failed", hash || null, realErr(e));
+        logLine("Real Mode: " + label + " failed — " + realErr(e), "bad");
+        throw e;
+      }
+    }
+    function requireRealSigner(){
+      if (!window.ethereum) throw new Error("MetaMask not found — install it and reload.");
+      if (!realState.account) throw new Error("Connect your wallet first (Real Mode panel).");
+      if (realState.chainId !== REAL_CHAIN_ID) throw new Error("Wrong network — switch MetaMask to Sepolia (11155111) first.");
+    }
+    function currentRealGameId(){
+      return realState.gameId;
+    }
+    async function ensureRealAllowance(rowLabel){
+      var token = signerToken();
+      var allowance = await token.allowance(realState.account, REAL_CONTRACT);
+      var entryWei = ethers.utils.parseUnits("20", 18);
+      if (allowance.gte(entryWei)) return false;
+      await sendRealTx(rowLabel || "Approve 20 SQK for the game contract", function(){ return token.approve(REAL_CONTRACT, entryWei); });
+      return true;
+    }
+    function lobbyNameForSize(sz){
+      return sz === 4 ? "QUICK 4" : (sz === 16 ? "BIG 16" : "CLASSIC 9");
+    }
+    function renderRealLobbyInfo(st){
+      var lob = (typeof selectedLobby !== "undefined" && selectedLobby) ? selectedLobby : null;
+      var sz = lob ? lob.size : (st ? st.size : null);
+      var sizeEl = $("realLobbySizeLabel");
+      if (sizeEl) sizeEl.textContent = sz ? (lobbyNameForSize(sz) + " · " + sz + " players") : "—";
+      var gameEl = $("realCurrentGameLabel");
+      if (gameEl){
+        if (st) gameEl.textContent = "#" + st.gameId + " — info only";
+        else if (realState.gameId) gameEl.textContent = "#" + realState.gameId + " — info only";
+        else gameEl.textContent = "No game yet — press Join";
+      }
+      var playersEl = $("realPlayersLabel");
+      if (playersEl){
+        if (st && st.phase === 0){
+          var rem0 = st.size - st.players.length;
+          playersEl.textContent = rem0 > 0
+            ? "Waiting for players: " + st.players.length + " / " + st.size + " — " + rem0 + " more to start"
+            : "Players: " + st.players.length + " / " + st.size + " — full";
+        }
+        else if (st) playersEl.textContent = "Players: " + st.players.length + " / " + st.size;
+        else playersEl.textContent = "Players: — / " + (sz || "—");
+      }
+      var stateEl = $("realLobbyStateLabel");
+      if (stateEl){
+        if (!st && !realState.gameId) stateEl.textContent = "Waiting to join";
+        else if (st && st.phase === 0){
+          var rem1 = st.size - st.players.length;
+          stateEl.textContent = rem1 > 0
+            ? "Waiting for players: " + st.players.length + " / " + st.size + " — " + rem1 + " more to start"
+            : "Full — starting automatically…";
+        }
+        else if (st && st.phase === 1) stateEl.textContent = "Started automatically — game running";
+        else if (st) stateEl.textContent = PHASE_NAMES[st.phase];
+        else stateEl.textContent = "Loading…";
+      }
+      var joinBtn = $("realJoinBtn");
+      if (joinBtn && !realState.busy && lob) joinBtn.textContent = "Join " + lob.name + " lobby — 20 SQK (auto-find)";
+      // Mirror the players count into the play bar's status strip.
+      var bp = $("barPlayers");
+      if (bp && appMode === "real"){
+        if (st) bp.textContent = st.players.length + " / " + st.size + " in lobby";
+        else bp.textContent = "— / " + (sz || "—");
+      }
+    }
+    /* ---------- live lobby-waiting display (filling -> auto-start) ----------
+       One renderer drives both copies of the waiting banner: the one in
+       the Real Mode panel and the one above the board. It is fed only by
+       refreshRealState(), which polls the contract — every few seconds
+       while a lobby is filling — so each new join appears here on its
+       own, and the flip from phase 0 (Filling) to phase 1 (Playing) is
+       shown as "started automatically" with nothing for the user to press. */
+    function lwPlayersHTML(st, showOpenSlots){
+      var html = "";
+      st.players.forEach(function(p, idx){
+        html += "<li class='" + (p.you ? "you" : "") + "'><span class='lw-num'>" + (idx + 1) + "</span>" +
+          "<span class='mono'>" + shortAddr(p.addr) + "</span>" +
+          (p.you ? "<span>★ You — joined ✓</span>" : "<span>Joined ✓</span>") + "</li>";
+      });
+      if (showOpenSlots){
+        for (var e = st.players.length; e < st.size; e++){
+          html += "<li class='open'><span class='lw-num'>" + (e + 1) + "</span><span>Waiting for player…</span></li>";
+        }
+      }
+      return html;
+    }
+    function lwSlotsHTML(st){
+      var html = "";
+      for (var i = 0; i < st.size; i++) html += i < st.players.length ? "<i></i>" : "<i class='empty'></i>";
+      return html;
+    }
+    function renderRealWaiting(st){
+      var panel = $("realWaitingBox"), board = $("realBoardWaiting");
+      var inReal = (typeof appMode !== "undefined" && appMode === "real");
+      var waiting = !!(inReal && st && st.phase === 0);
+      var justStarted = !!(inReal && st && st.phase === 1 && realState.startedNotifiedFor === st.gameId);
+      if (!waiting && !justStarted){
+        if (panel) panel.classList.add("hidden");
+        if (board) board.classList.add("hidden");
+        return;
+      }
+      var joined = st.players.length, total = st.size, remaining = total - joined;
+      var nowStr = new Date().toLocaleTimeString("en-GB");
+      realState.lastWaitingUpdated = nowStr;
+      if (panel){
+        panel.classList.remove("hidden");
+        panel.classList.toggle("is-started", justStarted);
+        $("realWaitingHeadline").innerHTML = justStarted
+          ? "🎮 Lobby full: " + joined + " / " + total + " — game started automatically!"
+          : "⏳ Waiting for players: " + joined + " / " + total + " — <span class='lw-more'>" + remaining + " more to start</span>";
+        $("realWaitingSlots").innerHTML = lwSlotsHTML(st);
+        $("realWaitingGame").textContent = "#" + st.gameId;
+        $("realWaitingPlayers").innerHTML = lwPlayersHTML(st, waiting);
+        $("realWaitingUpdated").textContent = justStarted
+          ? "The lobby filled and the contract started the game by itself — no button was pressed. Last checked " + nowStr + "."
+          : "Live — last checked " + nowStr + ". This page keeps polling the contract while the lobby fills; each new player appears here automatically.";
+        var panelSub = panel.querySelector(".lw-sub");
+        if (panelSub) panelSub.style.display = justStarted ? "none" : "";
+      }
+      if (board){
+        board.classList.remove("hidden");
+        board.classList.toggle("is-started", justStarted);
+        $("realBoardWaitingHeadline").innerHTML = justStarted
+          ? "🎮 Lobby full: " + joined + " / " + total + " — game started automatically!"
+          : "⏳ Waiting for players: " + joined + " / " + total + " — <span class='lw-more'>" + remaining + " more to start</span>";
+        $("realBoardWaitingSlots").innerHTML = lwSlotsHTML(st);
+        $("realBoardWaitingSub").textContent = justStarted
+          ? "Game #" + st.gameId + " filled up and started on-chain by itself. The board below is live — play continues from the Real Mode panel."
+          : "Game #" + st.gameId + " (info only) — live from the contract. This updates on its own as players join; no button to press — the game starts automatically when the lobby is full.";
+        $("realBoardWaitingPlayers").innerHTML = lwPlayersHTML(st, waiting);
+        $("realBoardWaitingUpdated").textContent = "Live — last checked " + nowStr + ".";
+      }
+    }
+    // Keep the Real Mode lobby label in sync when the user clicks a
+    // lobby size card in the play bar (the cards are shared with Practice).
+    Array.prototype.forEach.call(document.querySelectorAll("#lobbies .lobby"), function(btn){
+      btn.addEventListener("click", function(){ setTimeout(function(){ renderRealLobbyInfo(realState.lastState); }, 0); });
+    });
+
+    /* ---------- auto-lobby: find an open game, or create one ---------- */
+    // Scan games from nextGameId backwards and return the newest game of
+    // the requested size that is still Filling (phase 0), not full, and
+    // that the connected wallet has not already joined. Null if none.
+    async function findOpenLobby(size){
+      var rg = readGame();
+      var nextId = Number(await rg.nextGameId());
+      for (var gid = nextId - 1; gid >= 1; gid--){
+        var g;
+        try { g = await rg.games(gid); } catch (e) { continue; }
+        if (Number(g.size) !== size) continue;
+        if (Number(g.phase) !== 0) continue; // only Filling — not started, not finished
+        var joined = 0, already = false;
+        for (var i = 0; i < size; i++){
+          var addr;
+          try { addr = await rg.players(gid, i); } catch (e) { break; }
+          if (!addr || addr === "0x0000000000000000000000000000000000000000") break;
+          joined++;
+          if (realState.account && addr.toLowerCase() === realState.account.toLowerCase()) already = true;
+        }
+        if (already) continue;
+        if (joined >= size) continue;
+        return { gameId: gid, joined: joined };
+      }
+      return null;
+    }
+    async function realJoinGame(){
+      if (!ethersReady() || realState.busy) return;
+      try {
+        requireRealSigner();
+        if (realState.balanceNum != null && realState.balanceNum < 20){
+          $("realGameStatus").textContent = "Not enough SQK: joining needs 20 SQK and your on-chain balance is " + fmtSQK(realState.balance) + " SQK.";
+          return;
+        }
+        var size = (typeof selectedLobby !== "undefined" && selectedLobby) ? selectedLobby.size : 9;
+        // Already in a filling lobby of this same size? Just show it — joining twice would revert.
+        if (realState.gameId && realState.lastState && realState.lastState.phase === 0 && realState.lastState.size === size){
+          var meAlready = realState.lastState.players.filter(function(p){ return p.you; })[0];
+          if (meAlready){
+            $("realGameStatus").textContent = "You are already in game #" + realState.gameId + " — Waiting for players: " + realState.lastState.players.length + " / " + realState.lastState.size + " — " + (realState.lastState.size - realState.lastState.players.length) + " more to start. It starts automatically when the lobby is full.";
+            renderRealLobbyInfo(realState.lastState);
+            return;
+          }
+        }
+        realState.busy = true;
+        renderRealLobbyInfo(null);
+        $("realTxList").innerHTML = "";
+        $("realGameStatus").textContent = "Searching for an open " + lobbyNameForSize(size) + " lobby on the contract…";
+        logLine("Real Mode: auto-lobby — searching for an open " + size + "-player lobby…", "purp");
+        var found = await findOpenLobby(size);
+        var gid = null;
+        var stepTotal = found ? 2 : 3;
+        var step = 1;
+        if (found){
+          gid = found.gameId;
+          $("realGameStatus").textContent = "Found open lobby — game #" + gid + " (Players: " + found.joined + " / " + size + "). Confirm the approve and join transactions to take your seat.";
+          logLine("Real Mode: auto-lobby found open game <b>#" + gid + "</b> — Players: " + found.joined + " / " + size + ".", "gold");
+        } else {
+          $("realGameStatus").textContent = "No open " + lobbyNameForSize(size) + " lobby right now — creating a new one for you. Confirm the create transaction in MetaMask.";
+          var createRow = realTxRow("Step " + step + " of " + stepTotal + " — Create new " + size + "-player lobby (createGame)");
+          step++;
+          var sg = signerGame();
+          var before = await readGame().nextGameId();
+          await sendRealTx("Create lobby", function(){ return sg.createGame(size); }, createRow);
+          var after = await readGame().nextGameId();
+          var newId = Number(after) - 1;
+          if (isNaN(newId) || newId < Number(before)) newId = Number(before);
+          gid = newId;
+          logLine("Real Mode: auto-lobby created new game <b>#" + gid + "</b> (" + size + " players).", "gold");
+        }
+        realState.gameId = gid;
+        realState.round = 1;
+        realState.winnerShownFor = null;
+        realState.fillingSeenFor = gid;
+        if (realState.startedNotifiedFor !== gid) realState.startedNotifiedFor = null;
+        renderRealLobbyInfo(null);
+        var approveRow = realTxRow("Step " + step + " of " + stepTotal + " — Approve 20 SQK (SQK token → game contract)");
+        step++;
+        var joinRow = realTxRow("Step " + step + " of " + stepTotal + " — Join game #" + gid + " (joinLobby · 18 SQK to pot, 2 SQK creator fee)");
+        // Approve (skipped with a note if the allowance already covers it)
+        var token = signerToken();
+        var entryWei = ethers.utils.parseUnits("20", 18);
+        var allowance = await token.allowance(realState.account, REAL_CONTRACT);
+        if (allowance.gte(entryWei)){
+          setRealTx(approveRow, "confirmed", null, "allowance already covers 20 SQK — no transaction needed");
+        } else {
+          await sendRealTx("Approve", function(){ return token.approve(REAL_CONTRACT, entryWei); }, approveRow);
+        }
+        // Join the auto-selected lobby
+        var g2 = signerGame();
+        await sendRealTx("Join", function(){ return g2.joinLobby(gid); }, joinRow);
+        $("realGameStatus").textContent = "You joined game #" + gid + ". Watch the waiting banner above: it shows live how many more players are needed, updates as each new player joins, and the game starts automatically when the lobby is full — you do not press anything else.";
+        logLine("Real Mode: you joined game <b>#" + gid + "</b> — 20 SQK paid (18 to the pot, 2 creator fee).", "gold");
+        await refreshRealBalance();
+        await refreshRealState(false);
+      } catch (e) {
+        $("realGameStatus").textContent = "Join failed: " + realErr(e);
+      } finally { realState.busy = false; renderRealLobbyInfo(realState.lastState); }
+    }
+    $("realJoinBtn").addEventListener("click", realJoinGame);
+    /* ---------- live on-chain state -> the shared board ---------- */
+    async function refreshRealState(manual){
+      if (!ethersReady()) return;
+      if (realState.refreshing) return; // a poll is already in flight — don't stack reads
+      realState.refreshing = true;
+      try {
+        var rg = readGame();
+        var nextId = Number(await rg.nextGameId());
+        var treasuryBn = await rg.treasury();
+        var lastDraw = Number(await rg.lastDrawBlock());
+        var blockNum = 0;
+        try { blockNum = await readProvider().getBlockNumber(); } catch (e) {}
+        var treasuryNum = Number(ethers.utils.formatUnits(treasuryBn, 18));
+        var gid = currentRealGameId();
+        if (!gid){
+          $("realGameStatus").textContent = "Contract is live on Sepolia: " + (nextId - 1) + " game(s) created so far. Treasury holds " + treasuryNum.toLocaleString("en-US") + " SQK · last draw block #" + lastDraw.toLocaleString("en-US") + " · next draw from block #" + (lastDraw + 1800).toLocaleString("en-US") + (blockNum ? " · Sepolia block #" + blockNum.toLocaleString("en-US") : "") + ". Pick a lobby size in the play bar above the board and press Join there — the site will auto-find an open lobby or create one.";
+          $("realLiveStats").innerHTML = "";
+          renderRealLobbyInfo(null);
+          renderRealWaiting(null);
+          return;
+        }
+        var g = await rg.games(gid);
+        var size = Number(g.size);
+        if (size === 0){
+          $("realGameStatus").textContent = "Game #" + gid + " does not exist on-chain yet. The next game ID on the contract is " + nextId + ".";
+          renderRealWaiting(null);
+          return;
+        }
+        var playersInfo = [];
+        for (var i = 0; i < size; i++){
+          var addr;
+          try { addr = await rg.players(gid, i); } catch (e) { break; }
+          if (!addr || addr === "0x0000000000000000000000000000000000000000") break;
+          var isAlive = await rg.alive(gid, addr);
+          var info = { addr: addr, alive: !!isAlive, you: !!(realState.account && addr.toLowerCase() === realState.account.toLowerCase()) };
+          if (Number(g.phase) === 2 || Number(g.phase) === 3){
+            info.accepted = await rg.raiseAccepted(gid, addr);
+            info.declined = await rg.raiseDeclined(gid, addr);
+            info.matched = await rg.raiseMatched(gid, addr);
+            info.txFailed = await rg.raiseTxFailed(gid, addr);
+          }
+          playersInfo.push(info);
+        }
+        var aliveCount = Number(await rg.aliveCount(gid));
+        var st = {
+          gameId: gid, size: size, phase: Number(g.phase),
+          pot: Number(ethers.utils.formatUnits(g.pot, 18)),
+          seedBlock: Number(g.seedBlock), seed: Number(g.seed), tier: TIER_NAMES[Number(g.tier)] || "FULL",
+          raisesUsed: Number(g.raisesUsed), maxRaises: Number(g.maxRaises),
+          raiseDeadline: Number(g.raiseDeadline), txDeadline: Number(g.txDeadline),
+          proposer: g.raiseProposer, spinReadyAt: Number(g.spinReadyAt),
+          winner: g.winner, players: playersInfo, aliveCount: aliveCount,
+          treasury: treasuryNum, lastDraw: lastDraw, blockNum: blockNum, nextId: nextId
+        };
+        var prevSt = realState.lastState;
+        realState.lastState = st;
+        // Live-waiting change detection, same game only: announce each
+        // new join, and the moment the contract flips Filling -> Playing
+        // (the lobby filled) announce the automatic start — once.
+        if (prevSt && prevSt.gameId === st.gameId){
+          if (st.phase === 0 && prevSt.phase === 0 && st.players.length > prevSt.players.length){
+            var newOnes = st.players.slice(prevSt.players.length);
+            var remNow = st.size - st.players.length;
+            newOnes.forEach(function(np){
+              logLine("Real Mode: new player joined game <b>#" + st.gameId + "</b> — <span class='mono'>" + shortAddr(np.addr) + "</span>. Waiting for players: " + st.players.length + " / " + st.size + (remNow > 0 ? " — " + remNow + " more to start." : " — lobby full."), "gold");
+            });
+          }
+          if (prevSt.phase === 0 && st.phase >= 1 && realState.startedNotifiedFor !== st.gameId){
+            realState.startedNotifiedFor = st.gameId;
+            logLine("🎮 Real Mode: lobby full — game <b>#" + st.gameId + "</b> started automatically on-chain (" + st.players.length + " / " + st.size + " players). You did not have to press anything.", "good");
+          }
+        }
+        if (st.phase === 0) realState.fillingSeenFor = st.gameId;
+        // Covers joining as the very last player: there may be no earlier
+        // poll that saw this game filling, but the join flow did.
+        if (st.phase >= 1 && realState.fillingSeenFor === st.gameId && realState.startedNotifiedFor !== st.gameId){
+          realState.startedNotifiedFor = st.gameId;
+          logLine("🎮 Real Mode: lobby full — game <b>#" + st.gameId + "</b> started automatically on-chain (" + st.players.length + " / " + st.size + " players). You did not have to press anything.", "good");
+        }
+        renderRealBoard(st);
+        renderRealRaise(st);
+        renderRealLobbyInfo(st);
+        renderRealWaiting(st);
+        $("realGameStatus").textContent = st.phase === 0
+          ? "Waiting for players: " + playersInfo.length + " / " + size + " — " + (size - playersInfo.length) + " more to start. Game #" + gid + " (info only) starts automatically when the lobby is full — no button to press. (Live from the contract · Sepolia block #" + (blockNum ? blockNum.toLocaleString("en-US") : "…") + ")"
+          : "Game #" + gid + " — live from the contract (Sepolia block #" + (blockNum ? blockNum.toLocaleString("en-US") : "…") + "). Treasury: " + treasuryNum.toLocaleString("en-US") + " SQK · next treasury draw from block #" + (lastDraw + 1800).toLocaleString("en-US") + " (every 1,800 blocks).";
+        $("realLiveStats").innerHTML =
+          "<div class='stat-row'><span>Phase</span><b>" + PHASE_NAMES[st.phase] + "</b></div>" +
+          "<div class='stat-row'><span>Players joined</span><b>" + (st.phase === 0 && size > playersInfo.length ? "Waiting for players: " + playersInfo.length + " / " + size + " — " + (size - playersInfo.length) + " more to start" : "Players: " + playersInfo.length + " / " + size) + "</b></div>" +
+          "<div class='stat-row'><span>Alive</span><b>" + aliveCount + "</b></div>" +
+          "<div class='stat-row'><span>Pot (on-chain)</span><b>" + st.pot.toLocaleString("en-US") + " SQK</b></div>" +
+          "<div class='stat-row'><span>Raises used</span><b>" + st.raisesUsed + " / " + st.maxRaises + "</b></div>" +
+          (st.phase >= 1 && st.phase < 4 ? "<div class='stat-row'><span>Final tile (sealed)</span><b>" + st.tier + " · seed " + st.seed + "</b></div>" : "") +
+          (st.phase === 4 ? "<div class='stat-row'><span>Winner</span><b class='mono' style='font-size:12px;'>" + shortAddr(st.winner) + "</b></div>" : "");
+        if (manual) logLine("Real Mode: loaded game <b>#" + gid + "</b> from the contract — " + playersInfo.length + "/" + size + " players, phase: " + PHASE_NAMES[st.phase] + ", pot " + st.pot + " SQK.", "purp");
+        maybeShowRealWinner(st);
+      } catch (e) {
+        if (manual) $("realGameStatus").textContent = "Could not load on-chain state: " + realErr(e);
+      } finally {
+        realState.refreshing = false;
+      }
+    }
+    function realTileColors(addr){
+      var h = 0;
+      for (var i = 0; i < addr.length; i++) h = (Math.imul(h, 31) + addr.charCodeAt(i)) >>> 0;
+      return { fur: FURS[h % FURS.length], hat: HATS[Math.floor(h / 7) % HATS.length] };
+    }
+    function renderRealBoard(st){
+      var cols = st.size === 4 ? 2 : (st.size === 9 ? 3 : 4);
+      var area = $("boardArea");
+      var grid = document.createElement("div");
+      grid.className = "grid g" + cols;
+      grid.id = "tileGrid";
+      st.players.forEach(function(p, idx){
+        var c = realTileColors(p.addr);
+        p.fur = c.fur; p.hat = c.hat;
+        var t = document.createElement("div");
+        t.className = "tile" + (p.you ? " you" : "") + (!p.alive ? " dead" : "") +
+          (st.phase === 4 && st.winner && p.addr.toLowerCase() === st.winner.toLowerCase() ? " winner" : "");
+        t.id = "tile-" + idx;
+        t.innerHTML = hamsterSVG(c.fur, c.hat) +
+          "<div class='t-addr'>" + shortAddr(p.addr) + "</div>" +
+          "<div class='t-tag'>" + (st.phase === 4 && st.winner && p.addr.toLowerCase() === st.winner.toLowerCase() ? "★ Winner — final tile" : (!p.alive ? "Eliminated" : (p.you ? "★ You" : "Player") + " · Tile " + (idx + 1))) + "</div>";
+        grid.appendChild(t);
+      });
+      for (var e = st.players.length; e < st.size; e++){
+        var et = document.createElement("div");
+        et.className = "tile dead";
+        et.style.opacity = ".35";
+        et.innerHTML = "<div class='px' style='font-size:10px; line-height:1.8; padding:22px 0;'>WAITING<br/>FOR PLAYER</div><div class='t-tag'>Empty slot</div>";
+        grid.appendChild(et);
+      }
+      area.innerHTML = "";
+      area.appendChild(grid);
+      $("roundLabel").textContent = "REAL GAME #" + st.gameId + " — " + st.size + " PLAYERS · " + PHASE_NAMES[st.phase].toUpperCase();
+      $("aliveLabel").textContent = st.aliveCount + " of " + st.players.length + " tiles alive · raises used " + st.raisesUsed + "/" + st.maxRaises + " · on-chain (Sepolia)";
+      $("potAmount").textContent = st.pot.toLocaleString("en-US");
+      $("barPot").textContent = st.pot.toLocaleString("en-US");
+      $("barPlayers").textContent = st.players.length + " / " + st.size + " players";
+      $("potSub").textContent = "Real game #" + st.gameId + " · live contract pot";
+      if (st.phase >= 1){
+        $("seedBlock").textContent = "#" + st.seedBlock.toLocaleString("en-US");
+        $("seedValue").textContent = st.seed + " → " + st.tier;
+        var badge = $("tierBadge");
+        badge.textContent = st.phase === 4 ? "TIER WAS: " + st.tier : "TIER LOCKED: " + st.tier;
+        badge.className = "tier-badge " + st.tier.toLowerCase();
+      } else {
+        $("seedBlock").textContent = "—";
+        $("seedValue").textContent = "—";
+        var b2 = $("tierBadge");
+        b2.textContent = "SEALED — GAME NOT STARTED";
+        b2.className = "tier-badge sealed";
+      }
+      // spectator rules, same as practice: out but game still running
+      var me = st.players.filter(function(p){ return p.you; })[0];
+      var spectating = !!(me && !me.alive && st.phase !== 4 && st.phase !== 0);
+      $("spectatorBar").classList.toggle("hidden", !spectating);
+      if (st.phase === 0) setWheel("WAITING FOR PLAYERS: " + st.players.length + " / " + st.size, "Real game #" + st.gameId + " is filling on-chain — " + (st.size - st.players.length) + " more to start. This page polls the contract live, and the game starts automatically the moment the last player joins — no button to press.", false);
+      else if (st.phase === 1){
+        var readyIn = Math.max(0, st.spinReadyAt - Math.floor(Date.now() / 1000));
+        setWheel("ON-CHAIN GAME RUNNING", "The wheel's 10 seconds are counted by the contract (spin ready " + (readyIn > 0 ? "in ~" + readyIn + "s" : "now") + "). Anyone can press Spin & eliminate in the Real Mode panel once it is ready.", false);
+      }
+      else if (st.phase === 2) setWheel("RAISE OPEN — DECIDING", "A +20 SQK raise is open on-chain. The decision window ends at the contract deadline or once everyone has decided and someone opens the transaction window.", false);
+      else if (st.phase === 3) setWheel("RAISE — TRANSACTION WINDOW", "Acceptors now confirm their +20 SQK on-chain. Anyone can settle the raise once every transaction is recorded or the 60 seconds are up.", false);
+      else if (st.phase === 4) setWheel("THE FINAL TILE OPENS", "Real game #" + st.gameId + " is finished on-chain. Winner: " + shortAddr(st.winner) + " · final tile was " + st.tier + ".", false);
+    }
+    /* Mirror an open on-chain raise into the shared raise panel + popup.
+       Buttons inside them get Real Mode handlers (added below); the
+       Practice handlers ignore clicks while raiseState is null. */
+    function renderRealRaise(st){
+      var me = st.players.filter(function(p){ return p.you; })[0];
+      var userAlive = !!(me && me.alive);
+      if (st.phase === 2){
+        var msg = "<b>" + (st.proposer && realState.account && st.proposer.toLowerCase() === realState.account.toLowerCase() ? "You" : shortAddr(st.proposer)) + "</b> proposed a raise on-chain (raise " + st.raisesUsed + " of " + st.maxRaises + "): every alive player has <b>30 seconds to accept or decline</b> the +20 SQK — declining or staying silent eliminates you when the window is settled.";
+        $("raiseText").innerHTML = msg;
+        $("modalRaiseText").innerHTML = msg;
+        var votes = "";
+        st.players.forEach(function(p){
+          if (!p.alive && !p.accepted && !p.declined) return;
+          var who = p.you ? "<b>You</b>" : "<span class='mono'>" + shortAddr(p.addr) + "</span>";
+          if (st.proposer && p.addr.toLowerCase() === st.proposer.toLowerCase()) votes += "<div>" + who + " — <span class='ok'>proposed the raise</span></div>";
+          else if (p.accepted) votes += "<div>" + who + " — <span class='ok'>accepted +20 SQK</span></div>";
+          else if (p.declined) votes += "<div>" + who + " — <span class='no'>declined · eliminated</span></div>";
+          else votes += "<div>" + who + " — <span class='wait'>deciding…</span></div>";
+        });
+        $("raiseVotes").innerHTML = votes;
+        $("modalRaiseVotes").innerHTML = votes;
+        $("txSection").classList.add("hidden");
+        $("raisePanel").classList.remove("hidden");
+        $("raiseAcceptBtn").disabled = !userAlive;
+        $("raiseDeclineBtn").disabled = !userAlive;
+        $("modalAcceptBtn").disabled = !userAlive;
+        $("modalDeclineBtn").disabled = !userAlive;
+        showRaiseStep("decision");
+        if (userAlive){ openRaiseModal(); realState.modalByReal = true; }
+        else if (realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
+      } else if (st.phase === 3){
+        var tv = "";
+        st.players.forEach(function(p){
+          if (!p.accepted) return;
+          var who = p.you ? "<b>You</b>" : "<span class='mono'>" + shortAddr(p.addr) + "</span>";
+          if (p.matched) tv += "<div>" + who + " — <span class='ok'>tx confirmed ✓ · +20 SQK paid</span></div>";
+          else if (p.txFailed) tv += "<div>" + who + " — <span class='no'>tx failed · eliminated</span></div>";
+          else tv += "<div>" + who + " — <span class='wait'>tx pending · not submitted yet</span></div>";
+        });
+        $("txVotes").innerHTML = tv;
+        $("modalTxVotes").innerHTML = tv;
+        $("txSection").classList.remove("hidden");
+        $("raisePanel").classList.remove("hidden");
+        var userOwes = !!(me && me.alive && me.accepted && !me.matched && !me.txFailed);
+        $("txConfirmBtn").disabled = !userOwes;
+        $("modalTxConfirmBtn").disabled = !userOwes;
+        var hint = userOwes ? "Your raise transaction is still pending — confirm it from this popup or the Real Mode panel before the 60 seconds end, or you are eliminated." : "On-chain status, read live from the contract.";
+        $("txHint").textContent = hint;
+        $("modalTxHint").textContent = hint;
+        showRaiseStep("tx");
+        if (userOwes){ openRaiseModal(); realState.modalByReal = true; }
+        else if (realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
+      } else {
+        $("raisePanel").classList.add("hidden");
+        if (realState.modalByReal){ closeRaiseModal(); realState.modalByReal = false; }
+      }
+    }
+    function maybeShowRealWinner(st){
+      if (st.phase !== 4 || !st.winner || st.winner === "0x0000000000000000000000000000000000000000") return;
+      if (realState.winnerShownFor === st.gameId) return;
+      realState.winnerShownFor = st.gameId;
+      var w = st.players.filter(function(p){ return p.addr.toLowerCase() === st.winner.toLowerCase(); })[0];
+      if (!w) return;
+      if (!w.fur){ var c = realTileColors(w.addr); w.fur = c.fur; w.hat = c.hat; }
+      var toWinner = st.tier === "FULL" ? st.pot : (st.tier === "HALF" ? Math.floor(st.pot / 2) : 0);
+      // The contract zeroes the pot at finish; reconstruct the final pot
+      // from the live pot while playing is impossible after the fact, so
+      // the breakdown uses the last pot the page saw, or the tier split of
+      // the finished pot when it was captured before finishing.
+      var finalPot = realState.lastFinalPot && realState.lastFinalPot.gameId === st.gameId ? realState.lastFinalPot.pot : st.pot;
+      var tw = st.tier === "FULL" ? finalPot : (st.tier === "HALF" ? Math.floor(finalPot / 2) : 0);
+      try {
+        game.tier = st.tier; game.seed = st.seed; game.seedBlock = st.seedBlock; game.pot = finalPot;
+        showWinnerModal({ winner: w, pot: finalPot, toWinner: tw, toTreasury: finalPot - tw, feesPaid: Math.round(finalPot / 18 * 2), lobbySize: st.size, lobbyName: st.size + " players · Real game #" + st.gameId });
+        var note = $("winnerNote");
+        if (note) note.textContent = "Real Mode: this result was read from the deployed contract on Sepolia — the payout was made by the contract itself.";
+      } catch (e) {}
+      logLine("🏆 Real game #" + st.gameId + " finished on-chain: winner <span class='mono'>" + shortAddr(st.winner) + "</span>, final tile <b>" + st.tier + "</b>.", "gold");
+    }
+
+    /* ---------- in-game on-chain actions ---------- */
+    async function realAction(label, fn, skipGame){
+      if (!ethersReady() || realState.busy) return;
+      var gid = currentRealGameId();
+      if (!skipGame && !gid){ $("realGameStatus").textContent = "Join a lobby first — press Join above and the site will auto-find or create your game."; return; }
+      try {
+        requireRealSigner();
+        realState.busy = true;
+        var g = signerGame();
+        await sendRealTx(label, function(){ return fn(g, gid); });
+        await refreshRealBalance();
+        await refreshRealState(false);
+      } catch (e) {
+        $("realGameStatus").textContent = label + " failed: " + realErr(e);
+      } finally { realState.busy = false; }
+    }
+    $("realSpinBtn").addEventListener("click", function(){
+      var gid = currentRealGameId();
+      var round = realState.round || 1;
+      realAction("Spin & eliminate (game #" + gid + ", round " + round + ")", function(g, id){ return g.spinAndEliminate(id, round); })
+        .then(function(){ realState.round = round + 1; });
+    });
+    $("realProposeBtn").addEventListener("click", function(){ realAction("Propose raise +20 SQK", function(g, id){ return g.proposeRaise(id); }); });
+    $("realAcceptBtn").addEventListener("click", function(){ realAction("Accept raise", function(g, id){ return g.acceptRaise(id); }); });
+    $("realDeclineBtn").addEventListener("click", function(){ realAction("Decline raise", function(g, id){ return g.declineRaise(id); }); });
+    $("realOpenTxBtn").addEventListener("click", function(){ realAction("Open transaction window", function(g, id){ return g.openTxWindow(id); }); });
+    $("realMarkFailBtn").addEventListener("click", function(){ realAction("Mark my raise tx failed", function(g, id){ return g.markRaiseTxFailed(id); }); });
+    $("realSettleBtn").addEventListener("click", function(){ realAction("Settle raise", function(g, id){ return g.settleRaise(id); }); });
+    $("realDrawBtn").addEventListener("click", function(){ realAction("Treasury draw", function(g){ return g.treasuryDraw(); }, true); });
+    $("realPollBtn").addEventListener("click", function(){
+      // remember the pot of a running game so the winner popup can show
+      // the full breakdown after the contract zeroes it at finish
+      refreshRealState(true);
+    });
+    async function realConfirmRaiseTx(){
+      if (!ethersReady() || realState.busy) return;
+      var gid = currentRealGameId();
+      if (!gid) return;
+      try {
+        requireRealSigner();
+        realState.busy = true;
+        await ensureRealAllowance("Approve 20 SQK for the raise");
+        var g = signerGame();
+        await sendRealTx("Confirm raise transaction (+20 SQK)", function(){ return g.confirmRaiseTx(gid); });
+        await refreshRealBalance();
+        await refreshRealState(false);
+      } catch (e) {
+        $("realGameStatus").textContent = "Confirm raise tx failed: " + realErr(e);
+      } finally { realState.busy = false; }
+    }
+    $("realConfirmTxBtn").addEventListener("click", realConfirmRaiseTx);
+    /* The shared raise panel + popup buttons also drive the contract in
+       Real Mode (their Practice handlers no-op while raiseState is null). */
+    function realFromShared(kind){
+      if (appMode !== "real") return;
+      if (kind === "accept") realAction("Accept raise", function(g, id){ return g.acceptRaise(id); });
+      else if (kind === "decline") realAction("Decline raise", function(g, id){ return g.declineRaise(id); });
+      else if (kind === "confirm") realConfirmRaiseTx();
+    }
+    $("raiseAcceptBtn").addEventListener("click", function(){ realFromShared("accept"); });
+    $("modalAcceptBtn").addEventListener("click", function(){ realFromShared("accept"); });
+    $("raiseDeclineBtn").addEventListener("click", function(){ realFromShared("decline"); });
+    $("modalDeclineBtn").addEventListener("click", function(){ realFromShared("decline"); });
+    $("txConfirmBtn").addEventListener("click", function(){ realFromShared("confirm"); });
+    $("modalTxConfirmBtn").addEventListener("click", function(){ realFromShared("confirm"); });
+    /* Keep the last seen running pot for the winner breakdown, and poll
+       the contract while Real Mode is on screen. */
+    setInterval(function(){
+      if (appMode !== "real") return;
+      if (realState.lastState && realState.lastState.phase !== 4 && realState.lastState.pot > 0){
+        realState.lastFinalPot = { gameId: realState.lastState.gameId, pot: realState.lastState.pot };
+      }
+      refreshRealState(false);
+      if (realState.account) refreshRealBalance();
+    }, 10000);
+    /* Fast live poll while a lobby is still filling: re-read the contract
+       every 4 seconds so the "Waiting for players: X / Y — Z more to
+       start" count, the joined-player list and the slot display update
+       as each new player joins — and so the flip to "started
+       automatically" shows within seconds of the lobby filling, with no
+       action from the user. refreshRealState() itself guards against
+       overlapping polls. */
+    setInterval(function(){
+      if (appMode !== "real") return;
+      if (!realState.gameId) return;
+      if (!realState.lastState || realState.lastState.phase !== 0) return;
+      refreshRealState(false);
+    }, 4000);
+    </script>
+  </body>
+</html>
